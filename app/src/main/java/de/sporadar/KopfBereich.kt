@@ -31,8 +31,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun KopfBereich(
     auswahl: Set<String>,
+    zeitraum: Zeitraum,
     onToggle: (String) -> Unit,
     onAlle: () -> Unit,
+    onZeitraum: (Zeitraum) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -68,7 +70,10 @@ fun KopfBereich(
                 )
             }
         }
+
         Spacer(Modifier.height(12.dp))
+
+        // Pilzarten (Mehrfachauswahl)
         Row(
             Modifier
                 .horizontalScroll(rememberScrollState())
@@ -104,6 +109,30 @@ fun KopfBereich(
                         labelColor = Farben.Schrift,
                         selectedContainerColor = Color(art.farbe).copy(alpha = 0.4f),
                         selectedLabelColor = Farben.Schrift
+                    )
+                )
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // Zeitraum (Einzelauswahl)
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Zeitraum.values().forEach { z ->
+                FilterChip(
+                    selected = z == zeitraum,
+                    onClick = { onZeitraum(z) },
+                    label = { Text(z.label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Farben.Karte,
+                        labelColor = Farben.SchriftGedimmt,
+                        selectedContainerColor = Farben.Amber,
+                        selectedLabelColor = Farben.Wald
                     )
                 )
             }
