@@ -404,9 +404,10 @@ fun UnterKarte(
                         trackColor = Farben.Wald
                     )
                     Spacer(Modifier.height(8.dp))
+                    val regenMm = wetter.regen14.roundToInt()
+                    val tempText = String.format("%.1f", wetter.temp7)
                     Text(
-                        "Regen (14 Tage): ${wetter.regen14.roundToInt()} mm · " +
-                            "Ø Temperatur (7 Tage): ${"%.1f".format(wetter.temp7)} °C",
+                        "Regen (14 Tage): $regenMm mm · Ø Temperatur (7 Tage): $tempText °C",
                         color = Farben.SchriftGedimmt,
                         fontSize = 12.sp
                     )
@@ -427,10 +428,17 @@ fun UnterKarte(
             } else {
                 val art = Daten.art(fund.artId)
                 val jetztSaison = art.istSaison(LocalDate.now().monthValue)
-                val datum = fund.datum?.split("-")
-                    ?.takeIf { it.size == 3 }
-                    ?.let { "${it[2]}.${it[1]}.${it[0]}" }
-                    ?: fund.datum
+                val datumTeile = fund.datum?.split("-")
+                val datum = if (datumTeile != null && datumTeile.size == 3) {
+                    datumTeile[2] + "." + datumTeile[1] + "." + datumTeile[0]
+                } else {
+                    fund.datum
+                }
+                val saisonText = if (jetztSaison) {
+                    "Saison: ${art.saison} · jetzt Saison ✅"
+                } else {
+                    "Saison: ${art.saison}"
+                }
 
                 Row(
                     Modifier.fillMaxWidth(),
@@ -461,12 +469,16 @@ fun UnterKarte(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Saison: ${art.saison}" + if (jetztSaison) " · jetzt Saison ✅" else "",
+                    saisonText,
                     color = if (jetztSaison) Farben.Moos else Farben.SchriftGedimmt,
                     fontSize = 13.sp
                 )
                 if (datum != null) {
-                    Text("Fund gemeldet am $datum", color = Farben.SchriftGedimmt, fontSize = 13.sp)
+                    Text(
+                        "Fund gemeldet am $datum",
+                        color = Farben.SchriftGedimmt,
+                        fontSize = 13.sp
+                    )
                 }
                 if (fund.fotoUrl != null) {
                     Spacer(Modifier.height(12.dp))
@@ -495,10 +507,4 @@ fun UnterKarte(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     art.umfeld.forEach { u ->
-                        Surface(shape = RoundedCornerShape(50), color = Farben.Wald) {
-                            Text(
-                                "🌲 $u",
-                                color = Farben.Schrift,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                         
+   
