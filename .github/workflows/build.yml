@@ -1,4 +1,4 @@
-name: Sporadar
+name: Sporadar APK bauen
 
 on:
   push:
@@ -20,8 +20,17 @@ jobs:
         with:
           gradle-version: 8.9
 
-      - name: Maps-Key aus GitHub-Secret eintragen
-        run: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" > local.properties
+      - name: Maps-Key prüfen und eintragen
+        env:
+          KEY_ROH: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          KEY=$(printf '%s' "$KEY_ROH" | tr -d '[:space:]"')
+          if [ -z "$KEY" ]; then
+            echo "FEHLER: Secret MAPS_API_KEY fehlt oder ist leer"
+            exit 1
+          fi
+          echo "Key gefunden, Laenge: ${#KEY} Zeichen (Google-Keys haben 39)"
+          printf 'MAPS_API_KEY=%s\n' "$KEY" > local.properties
 
       - name: Debug-APK bauen
         run: gradle assembleDebug --no-daemon
