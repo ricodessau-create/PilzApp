@@ -31,13 +31,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
+
+// Wie alt ist der Fund? z. B. "vor 3 Tagen"
+fun alterText(datum: String?): String? {
+    if (datum == null) return null
+    return try {
+        val tage = ChronoUnit.DAYS.between(LocalDate.parse(datum.take(10)), LocalDate.now())
+        if (tage < 1) {
+            "heute"
+        } else if (tage == 1L) {
+            "gestern"
+        } else if (tage < 31) {
+            "vor $tage Tagen"
+        } else if (tage < 60) {
+            "vor 1 Monat"
+        } else if (tage < 365) {
+            "vor " + (tage / 30) + " Monaten"
+        } else if (tage < 730) {
+            "vor 1 Jahr"
+        } else {
+            "vor " + (tage / 365) + " Jahren"
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
 
 @Composable
 fun UnterKarte(
     anzahl: Int,
     laedt: Boolean,
     meldung: String?,
+    standortHinweis: String?,
     wetter: Wetter?,
     fund: Fund?,
     onSchliessen: () -> Unit
@@ -59,7 +86,7 @@ fun UnterKarte(
                 .padding(20.dp)
         ) {
             if (fund == null) {
-                UebersichtInhalt(anzahl, laedt, meldung, wetter)
+                UebersichtInhalt(anzahl, laedt, meldung, standortHinweis, wetter)
             } else {
                 FundInhalt(fund, onSchliessen)
             }
@@ -72,6 +99,7 @@ fun UebersichtInhalt(
     anzahl: Int,
     laedt: Boolean,
     meldung: String?,
+    standortHinweis: String?,
     wetter: Wetter?
 ) {
     val titel = if (laedt) "Suche Funde …" else "$anzahl Funde"
@@ -89,6 +117,10 @@ fun UebersichtInhalt(
             color = Farben.SchriftGedimmt,
             fontSize = 13.sp
         )
+        if (standortHinweis != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(standortHinweis, color = Farben.Amber, fontSize = 12.sp)
+        }
         Spacer(Modifier.height(16.dp))
 
         if (wetter != null) {
@@ -136,7 +168,7 @@ fun UebersichtInhalt(
 
         Spacer(Modifier.height(10.dp))
         Text(
-            "Daten: GBIF · Wetter: Open-Meteo",
+            "Funde: iNaturalist (Community-Beobachtungen) · Wetter: Open-Meteo",
             color = Farben.SchriftGedimmt,
             fontSize = 10.sp
         )
@@ -148,16 +180,29 @@ fun FundInhalt(fund: Fund, onSchliessen: () -> Unit) {
     val art = Daten.art(fund.artId)
     val jetztSaison = art.istSaison(LocalDate.now().monthValue)
 
-    val teile = fund.datum?.split("-")
+    val teile = fund.datum?.take(10)?.split("-")
     val datum = if (teile != null && teile.size == 3) {
         teile[2] + "." + teile[1] + "." + teile[0]
     } else {
         fund.datum
     }
+    val alter = alterText(fund.datum)
+    val datumZeile = if (datum != null && alter != null) {
+        "Beobachtet am " + datum + " (" + alter + ")"
+    } else if (datum != null) {
+        "Beobachtet am " + datum
+    } else {
+        null
+    }
     val saisonText = if (jetztSaison) {
         "Saison: " + art.saison + " · jetzt Saison ✅"
     } else {
         "Saison: " + art.saison
+    }
+    val statusText = if (fund.bestaetigt) {
+        "✅ Bestimmung von der Community bestätigt"
+    } else {
+        "⚠️ Bestimmung noch nicht bestätigt, kann falsch sein"
     }
 
     Column {
@@ -195,11 +240,23 @@ fun FundInhalt(fund: Fund, onSchliessen: () -> Unit) {
             color = if (jetztSaison) Farben.Moos else Farben.SchriftGedimmt,
             fontSize = 13.sp
         )
-        if (datum != null) {
+        if (datumZeile != null) {
             Text(
-                "Fund gemeldet am $datum",
+                datumZeile,
                 color = Farben.SchriftGedimmt,
                 fontSize = 13.sp
+            )
+        }
+        Text(
+            statusText,
+            color = if (fund.bestaetigt) Farben.Moos else Farben.Amber,
+            fontSize = 12.sp
+        )
+        if (fund.ungenau) {
+            Text(
+                "📍 Ort ist vom Melder absichtlich ungenau",
+                color = Farben.SchriftGedimmt,
+                fontSize = 12.sp
             )
         }
 
