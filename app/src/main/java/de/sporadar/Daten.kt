@@ -26,7 +26,9 @@ data class Fund(
     val lng: Double,
     val datum: String?,
     val fotoUrl: String?,
-    val fotoCredit: String?
+    val fotoCredit: String?,
+    val bestaetigt: Boolean,
+    val ungenau: Boolean
 )
 
 object Daten {
@@ -136,3 +138,5 @@ object Daten {
 
     fun art(id: String) = arten.first { it.id == id }
 }
+
+// ENDE
