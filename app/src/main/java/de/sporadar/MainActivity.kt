@@ -46,8 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -96,10 +94,13 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
     var hatStandort by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
         )
     }
     var standort by remember { mutableStateOf<LatLng?>(null) }
+    var standortHinweis by remember { mutableStateOf<String?>(null) }
     var kartenBereit by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -120,22 +121,34 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
     val kamera = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(51.16, 10.45), 6f)
     }
+
+    // Standort automatisch suchen, sobald die Freigabe da ist (bis zu 4 Versuche)
     LaunchedEffect(hatStandort) {
         if (hatStandort) {
-            LocationServices.getFusedLocationProviderClient(ctx)
-                .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
-                .addOnSuccessListener { loc ->
-                    if (loc != null) {
-                        val p = LatLng(loc.latitude, loc.longitude)
-                        standort = p
-                        kamera.move(CameraUpdateFactory.newLatLngZoom(p, 12f))
-                    }
+            standortHinweis = "Standort wird gesucht …"
+            var p: LatLng? = null
+            var versuch = 0
+            while (p == null && versuch < 4) {
+                p = holeStandort(ctx)
+                if (p == null) {
+                    versuch++
+                    delay(2000)
                 }
+            }
+            if (p != null) {
+                standort = p
+                standortHinweis = null
+                kamera.move(CameraUpdateFactory.newLatLngZoom(p, 12f))
+            } else {
+                standortHinweis = "Standort nicht gefunden. Schalte den Standort am Handy ein und tippe auf 📍."
+            }
+        } else {
+            standortHinweis = "Standortfreigabe fehlt. Tippe auf 📍, um sie zu erteilen."
         }
     }
 
     // Funde und Wetter laden, sobald die Karte stillsteht
-    LaunchedEffect(kamera.isMoving, vm.auswahl, kartenBereit) {
+    LaunchedEffect(kamera.isMoving, vm.auswahl, vm.zeitraum, kartenBereit) {
         if (kartenBereit && !kamera.isMoving) {
             delay(500)
             val b = kamera.projection?.visibleRegion?.latLngBounds
@@ -168,7 +181,7 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                 mapToolbarEnabled = false,
                 compassEnabled = false
             ),
-            contentPadding = PaddingValues(top = 150.dp, bottom = 230.dp),
+            contentPadding = PaddingValues(top = 200.dp, bottom = 230.dp),
             onMapLoaded = { kartenBereit = true },
             onMapClick = { vm.waehle(null) }
         ) {
@@ -197,8 +210,10 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
 
         KopfBereich(
             auswahl = vm.auswahl,
+            zeitraum = vm.zeitraum,
             onToggle = { id -> vm.toggle(id) },
             onAlle = { vm.alleAnzeigen() },
+            onZeitraum = { z -> vm.setzeZeitraum(z) },
             modifier = Modifier.align(Alignment.TopCenter)
         )
 
@@ -214,13 +229,19 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                         .clip(CircleShape)
                         .background(Farben.Moos)
                         .clickable {
-                            val p = standort
-                            if (p != null) {
-                                scope.launch {
-                                    kamera.animate(CameraUpdateFactory.newLatLngZoom(p, 13f), 800)
-                                }
-                            } else if (!hatStandort) {
+                            if (!hatStandort) {
                                 launcher.launch(rechte)
+                            } else {
+                                scope.launch {
+                                    val p = holeStandort(ctx)
+                                    if (p != null) {
+                                        standort = p
+                                        standortHinweis = null
+                                        kamera.animate(CameraUpdateFactory.newLatLngZoom(p, 13f), 800)
+                                    } else {
+                                        standortHinweis = "Standort nicht gefunden. Schalte den Standort am Handy ein."
+                                    }
+                                }
                             }
                         },
                     contentAlignment = Alignment.Center
@@ -233,6 +254,7 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                 anzahl = vm.funde.size,
                 laedt = vm.laedt,
                 meldung = vm.meldung,
+                standortHinweis = standortHinweis,
                 wetter = vm.wetter,
                 fund = gewaehlt,
                 onSchliessen = { vm.waehle(null) }
