@@ -13,11 +13,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,20 +24,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,17 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -80,8 +60,6 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import java.time.LocalDate
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -134,7 +112,9 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION
     )
-    LaunchedEffect(Unit) { if (!hatStandort) launcher.launch(rechte) }
+    LaunchedEffect(Unit) {
+        if (!hatStandort) launcher.launch(rechte)
+    }
 
     // Startansicht: ganz Deutschland, bis der Standort da ist
     val kamera = rememberCameraPositionState {
@@ -145,8 +125,8 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
             LocationServices.getFusedLocationProviderClient(ctx)
                 .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
                 .addOnSuccessListener { loc ->
-                    loc?.let {
-                        val p = LatLng(it.latitude, it.longitude)
+                    if (loc != null) {
+                        val p = LatLng(loc.latitude, loc.longitude)
                         standort = p
                         kamera.move(CameraUpdateFactory.newLatLngZoom(p, 12f))
                     }
@@ -161,8 +141,10 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
             val b = kamera.projection?.visibleRegion?.latLngBounds
             if (b != null) {
                 vm.ladeFunde(
-                    b.southwest.latitude, b.northeast.latitude,
-                    b.southwest.longitude, b.northeast.longitude
+                    b.southwest.latitude,
+                    b.northeast.latitude,
+                    b.southwest.longitude,
+                    b.northeast.longitude
                 )
                 val ziel = kamera.position.target
                 vm.ladeWetter(ziel.latitude, ziel.longitude)
@@ -195,7 +177,7 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                 key(f.id) {
                     val art = Daten.art(f.artId)
                     val istGewaehlt = gewaehlt?.id == f.id
-                    val icon = icons.getOrPut("${art.id}_$istGewaehlt") {
+                    val icon = icons.getOrPut(art.id + "_" + istGewaehlt) {
                         markerIcon(art.farbe, istGewaehlt)
                     }
                     val markerState = remember { MarkerState(LatLng(f.lat, f.lng)) }
@@ -215,8 +197,8 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
 
         KopfBereich(
             auswahl = vm.auswahl,
-            onToggle = vm::toggle,
-            onAlle = vm::alleAnzeigen,
+            onToggle = { id -> vm.toggle(id) },
+            onAlle = { vm.alleAnzeigen() },
             modifier = Modifier.align(Alignment.TopCenter)
         )
 
@@ -259,252 +241,4 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
     }
 }
 
-@Composable
-fun KopfBereich(
-    auswahl: Set<String>,
-    onToggle: (String) -> Unit,
-    onAlle: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Farben.Wald.copy(alpha = 0.96f), Color.Transparent)
-                )
-            )
-            .statusBarsPadding()
-            .padding(top = 8.dp, bottom = 28.dp)
-    ) {
-        Row(
-            Modifier.padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("🍄", fontSize = 30.sp)
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(
-                    "SPORADAR",
-                    color = Farben.Moos,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 22.sp,
-                    letterSpacing = 4.sp
-                )
-                Text(
-                    "Finde. Jage. Sammle.",
-                    color = Farben.SchriftGedimmt,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.sp
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = auswahl.isEmpty(),
-                onClick = onAlle,
-                label = { Text("Alle") },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Farben.Karte,
-                    labelColor = Farben.Schrift,
-                    selectedContainerColor = Farben.Moos,
-                    selectedLabelColor = Farben.Wald
-                )
-            )
-            Daten.arten.forEach { art ->
-                FilterChip(
-                    selected = art.id in auswahl,
-                    onClick = { onToggle(art.id) },
-                    label = { Text(art.name) },
-                    leadingIcon = {
-                        Box(
-                            Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(art.farbe))
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Farben.Karte,
-                        labelColor = Farben.Schrift,
-                        selectedContainerColor = Color(art.farbe).copy(alpha = 0.4f),
-                        selectedLabelColor = Farben.Schrift
-                    )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun UnterKarte(
-    anzahl: Int,
-    laedt: Boolean,
-    meldung: String?,
-    wetter: Wetter?,
-    fund: Fund?,
-    onSchliessen: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = Farben.Karte.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, Farben.Moos.copy(alpha = 0.25f))
-    ) {
-        Column(
-            Modifier
-                .animateContentSize()
-                .heightIn(max = 440.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp)
-        ) {
-            if (fund == null) {
-                Text(
-                    if (laedt) "Suche Funde …" else "$anzahl Funde",
-                    color = Farben.Schrift,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp
-                )
-                Text(
-                    meldung ?: "im Kartenausschnitt · essbare Pilze",
-                    color = Farben.SchriftGedimmt,
-                    fontSize = 13.sp
-                )
-                Spacer(Modifier.height(16.dp))
-                if (wetter != null) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Wetter-Index", color = Farben.Schrift, fontSize = 14.sp)
-                        Text(
-                            "${(wetter.index * 100).roundToInt()} %",
-                            color = Farben.Moos,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { wetter.index },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Farben.Moos,
-                        trackColor = Farben.Wald
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    val regenMm = wetter.regen14.roundToInt()
-                    val tempText = String.format("%.1f", wetter.temp7)
-                    Text(
-                        "Regen (14 Tage): $regenMm mm · Ø Temperatur (7 Tage): $tempText °C",
-                        color = Farben.SchriftGedimmt,
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        "Schätzwert aus Regen und Temperatur, kein Fundgarant.",
-                        color = Farben.SchriftGedimmt,
-                        fontSize = 11.sp
-                    )
-                } else {
-                    Text("Wetter wird geladen …", color = Farben.SchriftGedimmt, fontSize = 13.sp)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Daten: GBIF · Wetter: Open-Meteo",
-                    color = Farben.SchriftGedimmt,
-                    fontSize = 10.sp
-                )
-            } else {
-                val art = Daten.art(fund.artId)
-                val jetztSaison = art.istSaison(LocalDate.now().monthValue)
-                val datumTeile = fund.datum?.split("-")
-                val datum = if (datumTeile != null && datumTeile.size == 3) {
-                    datumTeile[2] + "." + datumTeile[1] + "." + datumTeile[0]
-                } else {
-                    fund.datum
-                }
-                val saisonText = if (jetztSaison) {
-                    "Saison: ${art.saison} · jetzt Saison ✅"
-                } else {
-                    "Saison: ${art.saison}"
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            art.name,
-                            color = Color(art.farbe),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        )
-                        Text(
-                            art.lateinisch,
-                            color = Farben.SchriftGedimmt,
-                            fontStyle = FontStyle.Italic,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Text(
-                        "✕",
-                        color = Farben.SchriftGedimmt,
-                        fontSize = 20.sp,
-                        modifier = Modifier
-                            .clickable { onSchliessen() }
-                            .padding(8.dp)
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    saisonText,
-                    color = if (jetztSaison) Farben.Moos else Farben.SchriftGedimmt,
-                    fontSize = 13.sp
-                )
-                if (datum != null) {
-                    Text(
-                        "Fund gemeldet am $datum",
-                        color = Farben.SchriftGedimmt,
-                        fontSize = 13.sp
-                    )
-                }
-                if (fund.fotoUrl != null) {
-                    Spacer(Modifier.height(12.dp))
-                    AsyncImage(
-                        model = fund.fotoUrl,
-                        contentDescription = art.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                    )
-                    if (fund.fotoCredit != null) {
-                        Text(
-                            "Foto: ${fund.fotoCredit}",
-                            color = Farben.SchriftGedimmt,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("Umfeld", color = Farben.SchriftGedimmt, fontSize = 11.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    art.umfeld.forEach { u ->
-   
+// ENDE
