@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,12 +51,17 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.clustering.Clustering
+import com.google.maps.android.compose.clustering.rememberClusterManager
+import com.google.maps.android.compose.clustering.rememberClusterRenderer
+import com.google.maps.android.compose.clustering.Cluster
+import com.google.maps.android.compose.clustering.ClusteringMarkerProperties
+import com.google.maps.android.compose.utils.MapsComposeExperimentalApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -78,7 +82,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun markerIcon(farbe: Long, gewaehlt: Boolean): BitmapDescriptor {
+data class PilzClusterItem(
+    val fund: Fund,
+    val farbe: Long,
+    val ausgewaehlt: Boolean
+) : ClusterItem {
+
+    override fun getPosition(): LatLng {
+        return LatLng(
+            fund.lat,
+            fund.lng
+        )
+    }
+
+    override fun getTitle(): String {
+        return fund.id
+    }
+
+    override fun getSnippet(): String? {
+        return null
+    }
+}
+
+fun markerIcon(
+    farbe: Long,
+    gewaehlt: Boolean
+): BitmapDescriptor {
     val px = if (gewaehlt) 88 else 60
 
     val bmp = Bitmap.createBitmap(
@@ -91,6 +120,7 @@ fun markerIcon(farbe: Long, gewaehlt: Boolean): BitmapDescriptor {
     val p = Paint(Paint.ANTI_ALIAS_FLAG)
 
     p.color = android.graphics.Color.WHITE
+
     c.drawCircle(
         px / 2f,
         px / 2f,
@@ -99,6 +129,7 @@ fun markerIcon(farbe: Long, gewaehlt: Boolean): BitmapDescriptor {
     )
 
     p.color = farbe.toInt()
+
     c.drawCircle(
         px / 2f,
         px / 2f,
@@ -109,6 +140,29 @@ fun markerIcon(farbe: Long, gewaehlt: Boolean): BitmapDescriptor {
     return BitmapDescriptorFactory.fromBitmap(bmp)
 }
 
+@Composable
+fun PilzClusterIcon(
+    anzahl: Int
+) {
+    Box(
+        modifier = Modifier
+            .size(58.dp)
+            .shadow(
+                elevation = 6.dp,
+                shape = CircleShape
+            )
+            .clip(CircleShape)
+            .background(Farben.Moos),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = anzahl.toString(),
+            fontSize = 17.sp
+        )
+    }
+}
+
+@OptIn(MapsComposeExperimentalApi::class)
 @SuppressLint("MissingPermission")
 @Composable
 fun SporadarScreen(
@@ -269,6 +323,23 @@ fun SporadarScreen(
 
     val gewaehlt = vm.gewaehlterFund()
 
+    val clusterItems = remember(
+        vm.funde,
+        gewaehlt
+    ) {
+        vm.funde.mapNotNull { fund ->
+            val art = Daten.arten.firstOrNull {
+                it.id == fund.artId
+            } ?: return@mapNotNull null
+
+            PilzClusterItem(
+                fund = fund,
+                farbe = art.farbe,
+                ausgewaehlt = gewaehlt?.id == fund.id
+            )
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -298,55 +369,58 @@ fun SporadarScreen(
                 vm.waehle(null)
             }
         ) {
-            val icons = remember {
-                HashMap<String, BitmapDescriptor>()
-            }
-
-            vm.funde.forEach { f ->
-                key(f.id) {
-                    val art = Daten.art(f.artId)
-
-                    val istGewaehlt =
-                        gewaehlt?.id == f.id
-
-                    val icon =
-                        icons.getOrPut(
-                            art.id + "_" + istGewaehlt
-                        ) {
-                            markerIcon(
-                                art.farbe,
-                                istGewaehlt
-                            )
-                        }
-
-                    val markerState = remember {
-                        MarkerState(
-                            LatLng(
-                                f.lat,
-                                f.lng
-                            )
+            Clustering(
+                items = clusterItems,
+                onClusterClick = {
+                    false
+                },
+                onClusterItemClick = { item ->
+                    vm.waehle(item.fund.id)
+                    true
+                },
+                clusterContent = { cluster: Cluster<PilzClusterItem> ->
+                    PilzClusterIcon(
+                        anzahl = cluster.size
+                    )
+                },
+                clusterItemContent = { item ->
+                    val icon = remember(
+                        item.farbe,
+                        item.ausgewaehlt
+                    ) {
+                        markerIcon(
+                            item.farbe,
+                            item.ausgewaehlt
                         )
                     }
 
-                    Marker(
-                        state = markerState,
-                        icon = icon,
+                    val properties = ClusteringMarkerProperties(
                         anchor = Offset(
                             0.5f,
                             0.5f
                         ),
-                        zIndex = if (istGewaehlt) {
+                        zIndex = if (item.ausgewaehlt) {
                             1f
                         } else {
                             0f
-                        },
-                        onClick = {
-                            vm.waehle(f.id)
-                            true
                         }
                     )
+
+                    androidx.compose.foundation.Image(
+                        bitmap = icon.toBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(
+                            if (item.ausgewaehlt) {
+                                44.dp
+                            } else {
+                                30.dp
+                            }
+                        )
+                    )
+
+                    properties
                 }
-            }
+            )
         }
 
         KopfBereich(
