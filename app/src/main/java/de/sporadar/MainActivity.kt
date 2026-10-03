@@ -64,110 +64,216 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
-        setContent { SporadarTheme { SporadarScreen() } }
+
+        setContent {
+            SporadarTheme {
+                SporadarScreen()
+            }
+        }
     }
 }
 
-// Runder Marker in der Farbe der Pilzart
 fun markerIcon(farbe: Long, gewaehlt: Boolean): BitmapDescriptor {
     val px = if (gewaehlt) 88 else 60
-    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+
+    val bmp = Bitmap.createBitmap(
+        px,
+        px,
+        Bitmap.Config.ARGB_8888
+    )
+
     val c = Canvas(bmp)
     val p = Paint(Paint.ANTI_ALIAS_FLAG)
+
     p.color = android.graphics.Color.WHITE
-    c.drawCircle(px / 2f, px / 2f, px / 2f, p)
+    c.drawCircle(
+        px / 2f,
+        px / 2f,
+        px / 2f,
+        p
+    )
+
     p.color = farbe.toInt()
-    c.drawCircle(px / 2f, px / 2f, px / 2f - 7f, p)
+    c.drawCircle(
+        px / 2f,
+        px / 2f,
+        px / 2f - 7f,
+        p
+    )
+
     return BitmapDescriptorFactory.fromBitmap(bmp)
 }
 
 @SuppressLint("MissingPermission")
 @Composable
-fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
+fun SporadarScreen(
+    vm: SporadarViewModel = viewModel()
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var hatStandort by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                ctx,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    ctx,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var standort by remember { mutableStateOf<LatLng?>(null) }
-    var standortHinweis by remember { mutableStateOf<String?>(null) }
-    var kartenBereit by remember { mutableStateOf(false) }
+
+    var standort by remember {
+        mutableStateOf<LatLng?>(null)
+    }
+
+    var standortHinweis by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var kartenBereit by remember {
+        mutableStateOf(false)
+    }
+
+    var letzteLadeSignatur by remember {
+        mutableStateOf<String?>(null)
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { res ->
-        hatStandort = res[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            res[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hatStandort =
+            res[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                res[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
+
     val rechte = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION
     )
+
     LaunchedEffect(Unit) {
-        if (!hatStandort) launcher.launch(rechte)
+        if (!hatStandort) {
+            launcher.launch(rechte)
+        }
     }
 
-    // Startansicht: ganz Deutschland, bis der Standort da ist
     val kamera = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(51.16, 10.45), 6f)
+        position = CameraPosition.fromLatLngZoom(
+            LatLng(51.16, 10.45),
+            6f
+        )
     }
 
-    // Standort automatisch suchen, sobald die Freigabe da ist (bis zu 4 Versuche)
     LaunchedEffect(hatStandort) {
         if (hatStandort) {
             standortHinweis = "Standort wird gesucht …"
+
             var p: LatLng? = null
             var versuch = 0
+
             while (p == null && versuch < 4) {
                 p = holeStandort(ctx)
+
                 if (p == null) {
                     versuch++
                     delay(2000)
                 }
             }
+
             if (p != null) {
                 standort = p
                 standortHinweis = null
-                kamera.move(CameraUpdateFactory.newLatLngZoom(p, 12f))
+
+                kamera.move(
+                    CameraUpdateFactory.newLatLngZoom(
+                        p,
+                        12f
+                    )
+                )
             } else {
-                standortHinweis = "Standort nicht gefunden. Schalte den Standort am Handy ein und tippe auf 📍."
+                standortHinweis =
+                    "Standort nicht gefunden. Schalte den Standort am Handy ein und tippe auf 📍."
             }
         } else {
-            standortHinweis = "Standortfreigabe fehlt. Tippe auf 📍, um sie zu erteilen."
+            standortHinweis =
+                "Standortfreigabe fehlt. Tippe auf 📍, um sie zu erteilen."
         }
     }
 
-    // Funde und Wetter laden, sobald die Karte stillsteht
-    LaunchedEffect(kamera.isMoving, vm.auswahl, vm.zeitraum, kartenBereit) {
-        if (kartenBereit && !kamera.isMoving) {
-            delay(500)
-            val b = kamera.projection?.visibleRegion?.latLngBounds
-            if (b != null) {
-                vm.ladeFunde(
-                    b.southwest.latitude,
-                    b.northeast.latitude,
-                    b.southwest.longitude,
-                    b.northeast.longitude
-                )
-                val ziel = kamera.position.target
-                vm.ladeWetter(ziel.latitude, ziel.longitude)
-            }
+    LaunchedEffect(
+        kamera.isMoving,
+        vm.auswahl,
+        vm.zeitraum,
+        kartenBereit
+    ) {
+        if (!kartenBereit || kamera.isMoving) {
+            return@LaunchedEffect
         }
+
+        delay(450)
+
+        if (kamera.isMoving) {
+            return@LaunchedEffect
+        }
+
+        val b = kamera.projection?.visibleRegion?.latLngBounds
+            ?: return@LaunchedEffect
+
+        val sued = b.southwest.latitude
+        val nord = b.northeast.latitude
+        val west = b.southwest.longitude
+        val ost = b.northeast.longitude
+
+        val signatur = buildString {
+            append("%.2f".format(sued))
+            append("|")
+            append("%.2f".format(nord))
+            append("|")
+            append("%.2f".format(west))
+            append("|")
+            append("%.2f".format(ost))
+            append("|")
+            append(vm.auswahl.sorted().joinToString(","))
+            append("|")
+            append(vm.zeitraum.name)
+        }
+
+        if (signatur == letzteLadeSignatur) {
+            return@LaunchedEffect
+        }
+
+        letzteLadeSignatur = signatur
+
+        vm.ladeFunde(
+            sued = sued,
+            nord = nord,
+            west = west,
+            ost = ost
+        )
+
+        val ziel = kamera.position.target
+
+        vm.ladeWetter(
+            lat = ziel.latitude,
+            lng = ziel.longitude
+        )
     }
 
     val gewaehlt = vm.gewaehlterFund()
 
-    Box(Modifier.fillMaxSize().background(Farben.Wald)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Farben.Wald)
+    ) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = kamera,
@@ -181,24 +287,59 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                 mapToolbarEnabled = false,
                 compassEnabled = false
             ),
-            contentPadding = PaddingValues(top = 200.dp, bottom = 230.dp),
-            onMapLoaded = { kartenBereit = true },
-            onMapClick = { vm.waehle(null) }
+            contentPadding = PaddingValues(
+                top = 200.dp,
+                bottom = 230.dp
+            ),
+            onMapLoaded = {
+                kartenBereit = true
+            },
+            onMapClick = {
+                vm.waehle(null)
+            }
         ) {
-            val icons = remember { HashMap<String, BitmapDescriptor>() }
+            val icons = remember {
+                HashMap<String, BitmapDescriptor>()
+            }
+
             vm.funde.forEach { f ->
                 key(f.id) {
                     val art = Daten.art(f.artId)
-                    val istGewaehlt = gewaehlt?.id == f.id
-                    val icon = icons.getOrPut(art.id + "_" + istGewaehlt) {
-                        markerIcon(art.farbe, istGewaehlt)
+
+                    val istGewaehlt =
+                        gewaehlt?.id == f.id
+
+                    val icon =
+                        icons.getOrPut(
+                            art.id + "_" + istGewaehlt
+                        ) {
+                            markerIcon(
+                                art.farbe,
+                                istGewaehlt
+                            )
+                        }
+
+                    val markerState = remember {
+                        MarkerState(
+                            LatLng(
+                                f.lat,
+                                f.lng
+                            )
+                        )
                     }
-                    val markerState = remember { MarkerState(LatLng(f.lat, f.lng)) }
+
                     Marker(
                         state = markerState,
                         icon = icon,
-                        anchor = Offset(0.5f, 0.5f),
-                        zIndex = if (istGewaehlt) 1f else 0f,
+                        anchor = Offset(
+                            0.5f,
+                            0.5f
+                        ),
+                        zIndex = if (istGewaehlt) {
+                            1f
+                        } else {
+                            0f
+                        },
                         onClick = {
                             vm.waehle(f.id)
                             true
@@ -211,21 +352,38 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
         KopfBereich(
             auswahl = vm.auswahl,
             zeitraum = vm.zeitraum,
-            onToggle = { id -> vm.toggle(id) },
-            onAlle = { vm.alleAnzeigen() },
-            onZeitraum = { z -> vm.setzeZeitraum(z) },
-            modifier = Modifier.align(Alignment.TopCenter)
+            onToggle = { id ->
+                vm.toggle(id)
+            },
+            onAlle = {
+                vm.alleAnzeigen()
+            },
+            onZeitraum = { z ->
+                vm.setzeZeitraum(z)
+            },
+            modifier = Modifier.align(
+                Alignment.TopCenter
+            )
         )
 
-        Column(Modifier.align(Alignment.BottomCenter)) {
+        Column(
+            Modifier.align(
+                Alignment.BottomCenter
+            )
+        ) {
             Row(
-                Modifier.fillMaxWidth().padding(end = 16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(end = 16.dp),
                 horizontalArrangement = Arrangement.End
             ) {
                 Box(
                     Modifier
                         .size(54.dp)
-                        .shadow(8.dp, CircleShape)
+                        .shadow(
+                            8.dp,
+                            CircleShape
+                        )
                         .clip(CircleShape)
                         .background(Farben.Moos)
                         .clickable {
@@ -234,22 +392,38 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                             } else {
                                 scope.launch {
                                     val p = holeStandort(ctx)
+
                                     if (p != null) {
                                         standort = p
                                         standortHinweis = null
-                                        kamera.animate(CameraUpdateFactory.newLatLngZoom(p, 13f), 800)
+
+                                        kamera.animate(
+                                            CameraUpdateFactory.newLatLngZoom(
+                                                p,
+                                                13f
+                                            ),
+                                            800
+                                        )
                                     } else {
-                                        standortHinweis = "Standort nicht gefunden. Schalte den Standort am Handy ein."
+                                        standortHinweis =
+                                            "Standort nicht gefunden. Schalte den Standort am Handy ein."
                                     }
                                 }
                             }
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("📍", fontSize = 22.sp)
+                    Text(
+                        "📍",
+                        fontSize = 22.sp
+                    )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+
+            Spacer(
+                Modifier.height(10.dp)
+            )
+
             UnterKarte(
                 anzahl = vm.funde.size,
                 laedt = vm.laedt,
@@ -257,10 +431,10 @@ fun SporadarScreen(vm: SporadarViewModel = viewModel()) {
                 standortHinweis = standortHinweis,
                 wetter = vm.wetter,
                 fund = gewaehlt,
-                onSchliessen = { vm.waehle(null) }
+                onSchliessen = {
+                    vm.waehle(null)
+                }
             )
         }
     }
 }
-
-// ENDE
