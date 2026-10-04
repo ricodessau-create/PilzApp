@@ -34,7 +34,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -51,7 +50,7 @@ import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.MapsComposeExperimentalApi
+import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.clustering.Clustering
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,10 +117,10 @@ fun PilzEinzelMarker(
         30.dp
     }
 
-    val rand = if (ausgewaehlt) {
-        5.dp
+    val innereGroesse = if (ausgewaehlt) {
+        34.dp
     } else {
-        4.dp
+        22.dp
     }
 
     Box(
@@ -137,7 +136,7 @@ fun PilzEinzelMarker(
     ) {
         Box(
             modifier = Modifier
-                .size(groesse - rand * 2)
+                .size(innereGroesse)
                 .clip(CircleShape)
                 .background(Color(farbe))
         )
@@ -166,7 +165,6 @@ fun PilzClusterIcon(
     }
 }
 
-@OptIn(MapsComposeExperimentalApi::class)
 @SuppressLint("MissingPermission")
 @Composable
 fun SporadarScreen(
@@ -223,16 +221,7 @@ fun SporadarScreen(
         }
     }
 
-    val kamera = androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(
-            CameraPosition.fromLatLngZoom(
-                LatLng(51.16, 10.45),
-                6f
-            )
-        )
-    }
-
-    val kameraPosition = com.google.maps.android.compose.rememberCameraPositionState {
+    val kamera = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
             LatLng(51.16, 10.45),
             6f
@@ -259,7 +248,7 @@ fun SporadarScreen(
                 standort = p
                 standortHinweis = null
 
-                kameraPosition.move(
+                kamera.move(
                     CameraUpdateFactory.newLatLngZoom(
                         p,
                         12f
@@ -276,22 +265,22 @@ fun SporadarScreen(
     }
 
     LaunchedEffect(
-        kameraPosition.isMoving,
+        kamera.isMoving,
         vm.auswahl,
         vm.zeitraum,
         kartenBereit
     ) {
-        if (!kartenBereit || kameraPosition.isMoving) {
+        if (!kartenBereit || kamera.isMoving) {
             return@LaunchedEffect
         }
 
         delay(450)
 
-        if (kameraPosition.isMoving) {
+        if (kamera.isMoving) {
             return@LaunchedEffect
         }
 
-        val b = kameraPosition.projection?.visibleRegion?.latLngBounds
+        val b = kamera.projection?.visibleRegion?.latLngBounds
             ?: return@LaunchedEffect
 
         val sued = b.southwest.latitude
@@ -326,7 +315,7 @@ fun SporadarScreen(
             ost = ost
         )
 
-        val ziel = kameraPosition.position.target
+        val ziel = kamera.position.target
 
         vm.ladeWetter(
             lat = ziel.latitude,
@@ -360,7 +349,7 @@ fun SporadarScreen(
     ) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = kameraPosition,
+            cameraPositionState = kamera,
             properties = MapProperties(
                 isMyLocationEnabled = hatStandort,
                 mapStyleOptions = MapStyleOptions(KartenStil)
@@ -401,8 +390,7 @@ fun SporadarScreen(
                         farbe = item.farbe,
                         ausgewaehlt = item.ausgewaehlt
                     )
-                },
-                clusterItemContentZIndex = 1f
+                }
             )
         }
 
@@ -454,7 +442,7 @@ fun SporadarScreen(
                                         standort = p
                                         standortHinweis = null
 
-                                        kameraPosition.animate(
+                                        kamera.animate(
                                             CameraUpdateFactory.newLatLngZoom(
                                                 p,
                                                 13f
