@@ -19,44 +19,67 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class Zeitraum(val label: String, val tage: Int?) {
+enum class Zeitraum(
+    val label: String,
+    val tage: Int?
+) {
     TAGE14("Letzte 14 Tage", 14),
     MONATE3("Letzte 3 Monate", 90),
     JAHR("Letztes Jahr", 365),
     ALLE("Alle Jahre", null)
 }
 
-class SporadarViewModel(app: Application) : AndroidViewModel(app) {
-    private val prefs = app.getSharedPreferences(
-        "sporadar",
-        Context.MODE_PRIVATE
+class SporadarViewModel(
+    app: Application
+) : AndroidViewModel(app) {
+
+    private val prefs =
+        app.getSharedPreferences(
+            "sporadar",
+            Context.MODE_PRIVATE
+        )
+
+    var auswahl by mutableStateOf(
+        setOf<String>()
     )
-
-    var auswahl by mutableStateOf(setOf<String>())
         private set
 
-    var zeitraum by mutableStateOf(Zeitraum.MONATE3)
+    var zeitraum by mutableStateOf(
+        Zeitraum.MONATE3
+    )
         private set
 
-    var gewaehlteFundId by mutableStateOf<String?>(null)
+    var gewaehlteFundId by mutableStateOf<String?>(
+        null
+    )
         private set
 
-    var funde by mutableStateOf<List<Fund>>(emptyList())
+    var funde by mutableStateOf<List<Fund>>(
+        emptyList()
+    )
         private set
 
-    var laedt by mutableStateOf(false)
+    var laedt by mutableStateOf(
+        false
+    )
         private set
 
-    var meldung by mutableStateOf<String?>(null)
+    var meldung by mutableStateOf<String?>(
+        null
+    )
         private set
 
-    var wetter by mutableStateOf<Wetter?>(null)
+    var wetter by mutableStateOf<Wetter?>(
+        null
+    )
         private set
 
     private var ladeJob: Job? = null
     private var wetterJob: Job? = null
     private var ladeNr = 0
-    private var wetterPos: Pair<Double, Double>? = null
+
+    private var wetterPos:
+        Pair<Double, Double>? = null
 
     private data class CacheEintrag(
         val zeitpunkt: Long,
@@ -68,68 +91,115 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         val wetter: Wetter
     )
 
-    private val fundCache = ladePersistentenFundCache()
-    private val wetterCache = ladePersistentenWetterCache()
+    private val fundCache =
+        ladePersistentenFundCache()
 
-    private var aktuellerLadeSchluessel: String? = null
+    private val wetterCache =
+        ladePersistentenWetterCache()
 
-    private var taxonIds: Map<String, Long> = leseIds()
-    private val aufgegeben = HashSet<String>()
-    private val idSperre = Mutex()
+    private var aktuellerLadeSchluessel:
+        String? = null
+
+    private var taxonIds:
+        Map<String, Long> =
+        leseIds("taxon_ids")
+
+    private var gbifTaxonKeys:
+        Map<String, Long> =
+        leseIds("gbif_taxon_keys")
+
+    private val aufgegeben =
+        HashSet<String>()
+
+    private val idSperre =
+        Mutex()
 
     private companion object {
-        const val FUND_CACHE_DAUER = 3 * 60 * 1000L
-        const val PERSISTENTER_CACHE_DAUER = 24 * 60 * 60 * 1000L
-        const val WETTER_CACHE_DAUER = 10 * 60 * 1000L
+        const val FUND_CACHE_DAUER =
+            3 * 60 * 1000L
 
-        const val MAX_FUND_CACHE = 10
-        const val MAX_WETTER_CACHE = 6
+        const val PERSISTENTER_CACHE_DAUER =
+            24 * 60 * 60 * 1000L
 
-        const val LADE_DEBOUNCE = 450L
+        const val WETTER_CACHE_DAUER =
+            10 * 60 * 1000L
 
-        const val FUND_CACHE_PREFS_KEY = "fund_cache"
-        const val WETTER_CACHE_PREFS_KEY = "wetter_cache"
+        const val MAX_FUND_CACHE =
+            10
+
+        const val MAX_WETTER_CACHE =
+            6
+
+        const val LADE_DEBOUNCE =
+            450L
+
+        const val FUND_CACHE_PREFS_KEY =
+            "fund_cache"
+
+        const val WETTER_CACHE_PREFS_KEY =
+            "wetter_cache"
     }
 
-    private fun leseIds(): Map<String, Long> {
-        val roh = prefs.getString(
-            "taxon_ids",
-            null
-        ) ?: return emptyMap()
+    private fun leseIds(
+        prefsKey: String
+    ): Map<String, Long> {
+        val roh =
+            prefs.getString(
+                prefsKey,
+                null
+            ) ?: return emptyMap()
 
         return try {
-            val o = JSONObject(roh)
-            val m = HashMap<String, Long>()
+            val o =
+                JSONObject(roh)
 
-            for (k in o.keys()) {
-                m[k] = o.getLong(k)
+            val m =
+                HashMap<String, Long>()
+
+            for (
+                k in o.keys()
+            ) {
+                m[k] =
+                    o.getLong(k)
             }
 
             m
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
             emptyMap()
         }
     }
 
     private fun speichereIds(
+        prefsKey: String,
         m: Map<String, Long>
     ) {
-        val o = JSONObject()
+        val o =
+            JSONObject()
 
-        for ((k, v) in m) {
-            o.put(k, v)
+        for (
+            (k, v) in m
+        ) {
+            o.put(
+                k,
+                v
+            )
         }
 
         prefs.edit()
             .putString(
-                "taxon_ids",
+                prefsKey,
                 o.toString()
             )
             .apply()
     }
 
-    private fun aktiveArten(): List<Pilzart> {
-        return if (auswahl.isEmpty()) {
+    private fun aktiveArten():
+        List<Pilzart> {
+        return if (
+            auswahl.isEmpty()
+        ) {
             Daten.arten
         } else {
             Daten.arten.filter {
@@ -148,33 +218,70 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun fundCacheSchluessel(
-        ids: Map<String, Long>,
+        inatIds: Map<String, Long>,
+        gbifIds: Map<String, Long>,
         sued: Double,
         nord: Double,
         west: Double,
         ost: Double,
         ab: LocalDate?
     ): String {
-        val idsText = ids.entries
-            .sortedBy { it.key }
-            .joinToString(",") {
-                "${it.key}:${it.value}"
-            }
+        val inatText =
+            inatIds.entries
+                .sortedBy {
+                    it.key
+                }
+                .joinToString(",") {
+                    "${it.key}:${it.value}"
+                }
+
+        val gbifText =
+            gbifIds.entries
+                .sortedBy {
+                    it.key
+                }
+                .joinToString(",") {
+                    "${it.key}:${it.value}"
+                }
 
         return buildString {
-            append(idsText)
+            append("v2")
+            append("|inat:")
+            append(inatText)
+            append("|gbif:")
+            append(gbifText)
             append("|")
             append(zeitraum.name)
             append("|")
             append(ab ?: "ALL")
             append("|")
-            append(rundeWert(sued, 0.01))
+            append(
+                rundeWert(
+                    sued,
+                    0.01
+                )
+            )
             append("|")
-            append(rundeWert(nord, 0.01))
+            append(
+                rundeWert(
+                    nord,
+                    0.01
+                )
+            )
             append("|")
-            append(rundeWert(west, 0.01))
+            append(
+                rundeWert(
+                    west,
+                    0.01
+                )
+            )
             append("|")
-            append(rundeWert(ost, 0.01))
+            append(
+                rundeWert(
+                    ost,
+                    0.01
+                )
+            )
         }
     }
 
@@ -191,8 +298,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         allowStale: Boolean = false
     ): List<Fund>? {
         val eintrag =
-            fundCache[schluessel]
-                ?: return null
+            fundCache[
+                schluessel
+            ] ?: return null
 
         val alter =
             System.currentTimeMillis() -
@@ -218,15 +326,58 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         return eintrag.funde
     }
 
+    private fun entferneDoppelteFunde(
+        funde: List<Fund>
+    ): List<Fund> {
+        val gesehen =
+            HashSet<String>()
+
+        val ergebnis =
+            mutableListOf<Fund>()
+
+        for (fund in funde) {
+            val datum =
+                fund.datum
+                    ?.take(10)
+                    ?: ""
+
+            val lat =
+                "%.4f".format(
+                    fund.lat
+                )
+
+            val lng =
+                "%.4f".format(
+                    fund.lng
+                )
+
+            val schluessel =
+                "${fund.artId}|$lat|$lng|$datum"
+
+            if (
+                gesehen.add(
+                    schluessel
+                )
+            ) {
+                ergebnis += fund
+            }
+        }
+
+        return ergebnis
+    }
+
     private fun speichereFunde(
         schluessel: String,
         funde: List<Fund>
     ) {
-        fundCache[schluessel] =
+        fundCache[
+            schluessel
+        ] =
             CacheEintrag(
                 zeitpunkt =
                     System.currentTimeMillis(),
-                funde = funde
+                funde =
+                    funde
             )
 
         while (
@@ -246,17 +397,23 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         val cache =
             LinkedHashMap<String, CacheEintrag>()
 
-        val roh = prefs.getString(
-            FUND_CACHE_PREFS_KEY,
-            null
-        ) ?: return cache
+        val roh =
+            prefs.getString(
+                FUND_CACHE_PREFS_KEY,
+                null
+            ) ?: return cache
 
         try {
-            val array = JSONArray(roh)
+            val array =
+                JSONArray(roh)
+
             val jetzt =
                 System.currentTimeMillis()
 
-            for (i in 0 until array.length()) {
+            for (
+                i in 0 until
+                    array.length()
+            ) {
                 val eintrag =
                     array.optJSONObject(i)
                         ?: continue
@@ -296,10 +453,12 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     mutableListOf<Fund>()
 
                 for (
-                    j in 0 until fundArray.length()
+                    j in 0 until
+                        fundArray.length()
                 ) {
                     val fundObject =
-                        fundArray.optJSONObject(j)
+                        fundArray
+                            .optJSONObject(j)
                             ?: continue
 
                     val id =
@@ -367,6 +526,22 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                             null
                         }
 
+                    val quelle =
+                        if (
+                            fundObject.has(
+                                "quelle"
+                            ) &&
+                            !fundObject.isNull(
+                                "quelle"
+                            )
+                        ) {
+                            fundObject.optString(
+                                "quelle"
+                            )
+                        } else {
+                            "iNaturalist"
+                        }
+
                     funde += Fund(
                         id = id,
                         artId = artId,
@@ -390,17 +565,24 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                             fundObject.optBoolean(
                                 "ungenau",
                                 false
-                            )
+                            ),
+                        quelle = quelle
                     )
                 }
 
-                cache[schluessel] =
+                cache[
+                    schluessel
+                ] =
                     CacheEintrag(
-                        zeitpunkt = zeitpunkt,
-                        funde = funde
+                        zeitpunkt =
+                            zeitpunkt,
+                        funde =
+                            funde
                     )
             }
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
             return LinkedHashMap()
         }
 
@@ -418,7 +600,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun speichereFundCache() {
         try {
-            val array = JSONArray()
+            val array =
+                JSONArray()
+
             val jetzt =
                 System.currentTimeMillis()
 
@@ -436,8 +620,11 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                 val fundArray =
                     JSONArray()
 
-                for (fund in eintrag.funde) {
-                    val o = JSONObject()
+                for (
+                    fund in eintrag.funde
+                ) {
+                    val o =
+                        JSONObject()
 
                     o.put(
                         "id",
@@ -459,47 +646,23 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         fund.lng
                     )
 
-                    if (
-                        fund.datum != null
-                    ) {
-                        o.put(
-                            "datum",
-                            fund.datum
-                        )
-                    } else {
-                        o.put(
-                            "datum",
-                            JSONObject.NULL
-                        )
-                    }
+                    o.put(
+                        "datum",
+                        fund.datum
+                            ?: JSONObject.NULL
+                    )
 
-                    if (
-                        fund.fotoUrl != null
-                    ) {
-                        o.put(
-                            "fotoUrl",
-                            fund.fotoUrl
-                        )
-                    } else {
-                        o.put(
-                            "fotoUrl",
-                            JSONObject.NULL
-                        )
-                    }
+                    o.put(
+                        "fotoUrl",
+                        fund.fotoUrl
+                            ?: JSONObject.NULL
+                    )
 
-                    if (
-                        fund.fotoCredit != null
-                    ) {
-                        o.put(
-                            "fotoCredit",
-                            fund.fotoCredit
-                        )
-                    } else {
-                        o.put(
-                            "fotoCredit",
-                            JSONObject.NULL
-                        )
-                    }
+                    o.put(
+                        "fotoCredit",
+                        fund.fotoCredit
+                            ?: JSONObject.NULL
+                    )
 
                     o.put(
                         "bestaetigt",
@@ -511,7 +674,14 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         fund.ungenau
                     )
 
-                    fundArray.put(o)
+                    o.put(
+                        "quelle",
+                        fund.quelle
+                    )
+
+                    fundArray.put(
+                        o
+                    )
                 }
 
                 val cacheObject =
@@ -532,7 +702,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     fundArray
                 )
 
-                array.put(cacheObject)
+                array.put(
+                    cacheObject
+                )
             }
 
             prefs.edit()
@@ -541,7 +713,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     array.toString()
                 )
                 .apply()
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
         }
     }
 
@@ -550,8 +724,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         allowStale: Boolean = false
     ): Wetter? {
         val eintrag =
-            wetterCache[schluessel]
-                ?: return null
+            wetterCache[
+                schluessel
+            ] ?: return null
 
         val alter =
             System.currentTimeMillis() -
@@ -581,11 +756,14 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         schluessel: String,
         wetter: Wetter
     ) {
-        wetterCache[schluessel] =
+        wetterCache[
+            schluessel
+        ] =
             WetterEintrag(
                 zeitpunkt =
                     System.currentTimeMillis(),
-                wetter = wetter
+                wetter =
+                    wetter
             )
 
         while (
@@ -605,17 +783,23 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         val cache =
             LinkedHashMap<String, WetterEintrag>()
 
-        val roh = prefs.getString(
-            WETTER_CACHE_PREFS_KEY,
-            null
-        ) ?: return cache
+        val roh =
+            prefs.getString(
+                WETTER_CACHE_PREFS_KEY,
+                null
+            ) ?: return cache
 
         try {
-            val array = JSONArray(roh)
+            val array =
+                JSONArray(roh)
+
             val jetzt =
                 System.currentTimeMillis()
 
-            for (i in 0 until array.length()) {
+            for (
+                i in 0 until
+                    array.length()
+            ) {
                 val o =
                     array.optJSONObject(i)
                         ?: continue
@@ -679,13 +863,19 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                             ).toFloat()
                     )
 
-                cache[schluessel] =
+                cache[
+                    schluessel
+                ] =
                     WetterEintrag(
-                        zeitpunkt = zeitpunkt,
-                        wetter = wetter
+                        zeitpunkt =
+                            zeitpunkt,
+                        wetter =
+                            wetter
                     )
             }
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
             return LinkedHashMap()
         }
 
@@ -703,7 +893,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun speichereWetterCache() {
         try {
-            val array = JSONArray()
+            val array =
+                JSONArray()
+
             val jetzt =
                 System.currentTimeMillis()
 
@@ -764,7 +956,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     wetterObject
                 )
 
-                array.put(cacheObject)
+                array.put(
+                    cacheObject
+                )
             }
 
             prefs.edit()
@@ -773,46 +967,64 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     array.toString()
                 )
                 .apply()
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
         }
     }
 
-    fun toggle(id: String) {
+    fun toggle(
+        id: String
+    ) {
         auswahl =
-            if (id in auswahl) {
+            if (
+                id in auswahl
+            ) {
                 auswahl - id
             } else {
                 auswahl + id
             }
 
-        gewaehlteFundId = null
+        gewaehlteFundId =
+            null
     }
 
     fun alleAnzeigen() {
-        auswahl = emptySet()
-        gewaehlteFundId = null
+        auswahl =
+            emptySet()
+
+        gewaehlteFundId =
+            null
     }
 
     fun setzeZeitraum(
         z: Zeitraum
     ) {
-        if (zeitraum == z) {
+        if (
+            zeitraum == z
+        ) {
             return
         }
 
-        zeitraum = z
-        gewaehlteFundId = null
+        zeitraum =
+            z
+
+        gewaehlteFundId =
+            null
     }
 
     fun waehle(
         id: String?
     ) {
-        gewaehlteFundId = id
+        gewaehlteFundId =
+            id
     }
 
-    fun gewaehlterFund(): Fund? {
+    fun gewaehlterFund():
+        Fund? {
         return funde.firstOrNull {
-            it.id == gewaehlteFundId
+            it.id ==
+                gewaehlteFundId
         }
     }
 
@@ -828,9 +1040,14 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         ) {
             ladeJob?.cancel()
 
-            aktuellerLadeSchluessel = null
-            funde = emptyList()
-            laedt = false
+            aktuellerLadeSchluessel =
+                null
+
+            funde =
+                emptyList()
+
+            laedt =
+                false
 
             meldung =
                 "Näher heranzoomen, um Funde zu laden"
@@ -851,83 +1068,162 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
 
         ladeJob?.cancel()
 
-        val nr = ++ladeNr
+        val nr =
+            ++ladeNr
 
         ladeJob =
             viewModelScope.launch {
-                delay(LADE_DEBOUNCE)
+                delay(
+                    LADE_DEBOUNCE
+                )
 
-                laedt = true
-                meldung = null
+                laedt =
+                    true
+
+                meldung =
+                    null
 
                 try {
                     idSperre.withLock {
-                        val fehlend =
+                        val fehlendInat =
                             aktiv.filter {
                                 !taxonIds.containsKey(
                                     it.id
                                 ) &&
-                                    it.id !in aufgegeben
+                                    it.id !in
+                                    aufgegeben
                             }
 
                         if (
-                            fehlend.isNotEmpty()
+                            fehlendInat.isNotEmpty()
                         ) {
                             meldung =
-                                "Pilzarten werden beim ersten Start eingerichtet …"
+                                "iNaturalist-Arten werden eingerichtet …"
 
                             val gefunden =
                                 Inat.taxonIds(
-                                    fehlend
+                                    fehlendInat
                                 )
 
                             taxonIds =
-                                taxonIds + gefunden
+                                taxonIds +
+                                    gefunden
 
                             if (
                                 gefunden.isNotEmpty()
                             ) {
                                 speichereIds(
+                                    "taxon_ids",
                                     taxonIds
                                 )
                             }
 
-                            for (a in fehlend) {
+                            for (
+                                art in
+                                    fehlendInat
+                            ) {
                                 if (
                                     !gefunden.containsKey(
-                                        a.id
+                                        art.id
                                     )
                                 ) {
                                     aufgegeben.add(
-                                        a.id
+                                        art.id
                                     )
                                 }
                             }
-
-                            meldung = null
                         }
+
+                        val fehlendGbif =
+                            aktiv.filter {
+                                !gbifTaxonKeys.containsKey(
+                                    it.id
+                                )
+                            }
+
+                        if (
+                            fehlendGbif.isNotEmpty()
+                        ) {
+                            meldung =
+                                "GBIF-Arten werden eingerichtet …"
+
+                            val gefunden =
+                                Gbif.taxonKeys(
+                                    fehlendGbif
+                                )
+
+                            gbifTaxonKeys =
+                                gbifTaxonKeys +
+                                    gefunden
+
+                            if (
+                                gefunden.isNotEmpty()
+                            ) {
+                                speichereIds(
+                                    "gbif_taxon_keys",
+                                    gbifTaxonKeys
+                                )
+                            }
+                        }
+
+                        meldung =
+                            null
                     }
 
-                    val ids =
+                    val inatIds =
                         HashMap<String, Long>()
 
-                    for (a in aktiv) {
-                        val t =
-                            taxonIds[a.id]
+                    val gbifIds =
+                        HashMap<String, Long>()
 
-                        if (t != null) {
-                            ids[a.id] = t
+                    for (
+                        art in aktiv
+                    ) {
+                        val inat =
+                            taxonIds[
+                                art.id
+                            ]
+
+                        if (
+                            inat != null
+                        ) {
+                            inatIds[
+                                art.id
+                            ] =
+                                inat
+                        }
+
+                        val gbif =
+                            gbifTaxonKeys[
+                                art.id
+                            ]
+
+                        if (
+                            gbif != null
+                        ) {
+                            gbifIds[
+                                art.id
+                            ] =
+                                gbif
                         }
                     }
 
                     val schluessel =
                         fundCacheSchluessel(
-                            ids = ids,
-                            sued = sued,
-                            nord = nord,
-                            west = west,
-                            ost = ost,
-                            ab = ab
+                            inatIds =
+                                inatIds,
+                            gbifIds =
+                                gbifIds,
+                            sued =
+                                sued,
+                            nord =
+                                nord,
+                            west =
+                                west,
+                            ost =
+                                ost,
+                            ab =
+                                ab
                         )
 
                     if (
@@ -948,8 +1244,11 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                     if (
                         cache != null
                     ) {
-                        funde = cache
-                        gewaehlteFundId = null
+                        funde =
+                            cache
+
+                        gewaehlteFundId =
+                            null
 
                         if (
                             cache.isEmpty()
@@ -961,14 +1260,65 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         return@launch
                     }
 
+                    meldung =
+                        "Funde werden aus mehreren Datenquellen geladen …"
+
+                    val inatFunde =
+                        try {
+                            Inat.funde(
+                                ids =
+                                    inatIds,
+                                sued =
+                                    sued,
+                                nord =
+                                    nord,
+                                west =
+                                    west,
+                                ost =
+                                    ost,
+                                ab =
+                                    ab
+                            )
+                        } catch (
+                            e: CancellationException
+                        ) {
+                            throw e
+                        } catch (
+                            e: Exception
+                        ) {
+                            emptyList()
+                        }
+
+                    val gbifFunde =
+                        try {
+                            Gbif.funde(
+                                ids =
+                                    gbifIds,
+                                sued =
+                                    sued,
+                                nord =
+                                    nord,
+                                west =
+                                    west,
+                                ost =
+                                    ost,
+                                ab =
+                                    ab
+                            )
+                        } catch (
+                            e: CancellationException
+                        ) {
+                            throw e
+                        } catch (
+                            e: Exception
+                        ) {
+                            emptyList()
+                        }
+
                     val neu =
-                        Inat.funde(
-                            ids = ids,
-                            sued = sued,
-                            nord = nord,
-                            west = west,
-                            ost = ost,
-                            ab = ab
+                        entferneDoppelteFunde(
+                            inatFunde +
+                                gbifFunde
                         )
 
                     speichereFunde(
@@ -976,15 +1326,20 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         neu
                     )
 
-                    funde = neu
-                    gewaehlteFundId = null
+                    funde =
+                        neu
 
-                    if (
-                        neu.isEmpty()
-                    ) {
-                        meldung =
+                    gewaehlteFundId =
+                        null
+
+                    meldung =
+                        if (
+                            neu.isEmpty()
+                        ) {
                             "Keine Funde in diesem Ausschnitt und Zeitraum"
-                    }
+                        } else {
+                            "${neu.size} Fundnachweise aus mehreren Datenquellen"
+                        }
                 } catch (
                     e: CancellationException
                 ) {
@@ -997,7 +1352,8 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                             schluessel =
                                 aktuellerLadeSchluessel
                                     ?: "",
-                            allowStale = true
+                            allowStale =
+                                true
                         )
 
                     if (
@@ -1012,16 +1368,19 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         meldung =
                             "Offline: gespeicherte Funde werden angezeigt"
                     } else {
-                        funde = emptyList()
+                        funde =
+                            emptyList()
 
                         meldung =
-                            "Keine Verbindung · noch keine Funde für diesen Ausschnitt gespeichert"
+                            "Keine Verbindung · noch keine Funde gespeichert"
                     }
                 } finally {
                     if (
-                        nr == ladeNr
+                        nr ==
+                        ladeNr
                     ) {
-                        laedt = false
+                        laedt =
+                            false
                     }
                 }
             }
@@ -1031,7 +1390,8 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         lat: Double,
         lng: Double
     ) {
-        val alt = wetterPos
+        val alt =
+            wetterPos
 
         if (
             alt != null &&
@@ -1059,9 +1419,12 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         if (
             cache != null
         ) {
-            wetter = cache
+            wetter =
+                cache
+
             wetterPos =
                 lat to lng
+
             return
         }
 
@@ -1084,7 +1447,8 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         neu
                     )
 
-                    wetter = neu
+                    wetter =
+                        neu
                 } catch (
                     e: CancellationException
                 ) {
@@ -1094,9 +1458,8 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                 ) {
                     val offlineWetter =
                         cachedWetter(
-                            schluessel =
-                                schluessel,
-                            allowStale = true
+                            schluessel,
+                            true
                         )
 
                     if (
@@ -1105,7 +1468,8 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                         wetter =
                             offlineWetter
                     } else {
-                        wetterPos = null
+                        wetterPos =
+                            null
                     }
                 }
             }

@@ -13,12 +13,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private suspend fun holeJson(url: String): JSONObject = withContext(Dispatchers.IO) {
-    val c = URL(url).openConnection() as HttpURLConnection
+private suspend fun holeJson(
+    url: String
+): JSONObject = withContext(Dispatchers.IO) {
+    val c =
+        URL(url).openConnection() as HttpURLConnection
+
     c.connectTimeout = 12000
     c.readTimeout = 20000
-    c.setRequestProperty("User-Agent", "Sporadar/0.4 (Android)")
-    c.setRequestProperty("Accept", "application/json")
+
+    c.setRequestProperty(
+        "User-Agent",
+        "Sporadar/0.5 (Android)"
+    )
+
+    c.setRequestProperty(
+        "Accept",
+        "application/json"
+    )
 
     try {
         val code = c.responseCode
@@ -28,65 +40,87 @@ private suspend fun holeJson(url: String): JSONObject = withContext(Dispatchers.
         }
 
         JSONObject(
-            c.inputStream.bufferedReader().use {
-                it.readText()
-            }
+            c.inputStream
+                .bufferedReader()
+                .use {
+                    it.readText()
+                }
         )
     } finally {
         c.disconnect()
     }
 }
 
-private fun JSONObject.text(name: String): String? {
-    if (isNull(name)) return null
+private fun JSONObject.text(
+    name: String
+): String? {
+    if (isNull(name)) {
+        return null
+    }
 
-    val s = optString(name)
+    val value =
+        optString(name)
 
-    return if (s.isBlank()) {
+    return if (value.isBlank()) {
         null
     } else {
-        s
+        value
     }
 }
 
 object Inat {
-    private const val BASIS = "https://api.inaturalist.org/v1"
+
+    private const val BASIS =
+        "https://api.inaturalist.org/v1"
 
     private suspend fun taxonId(
         lateinisch: String
     ): Long? {
-        val url = BASIS + "/taxa?q=" +
-            URLEncoder.encode(
-                lateinisch,
-                "UTF-8"
-            ) +
-            "&rank=species&is_active=true&per_page=5"
+        val url =
+            BASIS +
+                "/taxa?q=" +
+                URLEncoder.encode(
+                    lateinisch,
+                    "UTF-8"
+                ) +
+                "&rank=species" +
+                "&is_active=true" +
+                "&per_page=5"
 
-        val res = holeJson(url)
-            .optJSONArray("results")
-            ?: return null
+        val res =
+            holeJson(url)
+                .optJSONArray("results")
+                ?: return null
 
         var erster: Long? = null
 
         for (i in 0 until res.length()) {
-            val t = res.getJSONObject(i)
+            val taxon =
+                res.getJSONObject(i)
 
-            if (t.optString("rank") != "species") {
+            if (
+                taxon.optString("rank") !=
+                "species"
+            ) {
                 continue
             }
 
-            val id = t.optLong(
-                "id",
-                0L
-            )
+            val id =
+                taxon.optLong(
+                    "id",
+                    0L
+                )
 
             if (id == 0L) {
                 continue
             }
 
             if (
-                t.optString("name")
-                    .equals(lateinisch, true)
+                taxon.optString("name")
+                    .equals(
+                        lateinisch,
+                        true
+                    )
             ) {
                 return id
             }
@@ -104,9 +138,13 @@ object Inat {
     ): Long? {
         return try {
             taxonId(lateinisch)
-        } catch (e: CancellationException) {
+        } catch (
+            e: CancellationException
+        ) {
             throw e
-        } catch (e: Exception) {
+        } catch (
+            e: Exception
+        ) {
             null
         }
     }
@@ -114,31 +152,42 @@ object Inat {
     suspend fun taxonIds(
         arten: List<Pilzart>
     ): Map<String, Long> {
-        val ergebnis = HashMap<String, Long>()
+        val ergebnis =
+            HashMap<String, Long>()
+
+        val gruppen =
+            arten.chunked(4)
 
         for (
-            index in arten.chunked(4).indices
+            index in gruppen.indices
         ) {
-            val gruppe = arten.chunked(4)[index]
+            val gruppe =
+                gruppen[index]
 
-            val antworten = coroutineScope {
-                gruppe.map { art ->
-                    async {
-                        art.id to taxonIdSicher(
-                            art.lateinisch
-                        )
-                    }
-                }.awaitAll()
-            }
+            val antworten =
+                coroutineScope {
+                    gruppe.map { art ->
+                        async {
+                            art.id to
+                                taxonIdSicher(
+                                    art.lateinisch
+                                )
+                        }
+                    }.awaitAll()
+                }
 
-            for ((artId, tid) in antworten) {
-                if (tid != null) {
-                    ergebnis[artId] = tid
+            for (
+                (artId, taxonId)
+                in antworten
+            ) {
+                if (taxonId != null) {
+                    ergebnis[artId] =
+                        taxonId
                 }
             }
 
             if (
-                index < arten.chunked(4).lastIndex
+                index < gruppen.lastIndex
             ) {
                 delay(500)
             }
@@ -159,26 +208,32 @@ object Inat {
             return emptyList()
         }
 
-        val umgekehrt = HashMap<Long, String>()
+        val umgekehrt =
+            HashMap<Long, String>()
 
-        for ((artId, tid) in ids) {
-            umgekehrt[tid] = artId
+        for (
+            (artId, taxonId)
+            in ids
+        ) {
+            umgekehrt[taxonId] =
+                artId
         }
 
-        val d1 = if (ab != null) {
-            "&d1=$ab"
-        } else {
-            ""
-        }
+        val d1 =
+            if (ab != null) {
+                "&d1=$ab"
+            } else {
+                ""
+            }
 
         val url =
             BASIS +
                 "/observations?taxon_id=" +
                 ids.values.joinToString(",") +
-                "&swlat=" + sued +
-                "&swlng=" + west +
-                "&nelat=" + nord +
-                "&nelng=" + ost +
+                "&swlat=$sued" +
+                "&swlng=$west" +
+                "&nelat=$nord" +
+                "&nelng=$ost" +
                 d1 +
                 "&photos=true" +
                 "&geo=true" +
@@ -188,98 +243,462 @@ object Inat {
                 "&per_page=200" +
                 "&locale=de"
 
-        val res = holeJson(url)
-            .getJSONArray("results")
+        val result =
+            holeJson(url)
+                .getJSONArray("results")
 
-        val liste = mutableListOf<Fund>()
+        val liste =
+            mutableListOf<Fund>()
 
-        for (i in 0 until res.length()) {
-            val o = res.getJSONObject(i)
+        for (
+            i in 0 until result.length()
+        ) {
+            val observation =
+                result.getJSONObject(i)
 
-            val koord = o.optJSONObject("geojson")
-                ?.optJSONArray("coordinates")
-                ?: continue
+            val koordinaten =
+                observation
+                    .optJSONObject(
+                        "geojson"
+                    )
+                    ?.optJSONArray(
+                        "coordinates"
+                    )
+                    ?: continue
 
-            if (koord.length() < 2) {
+            if (
+                koordinaten.length() < 2
+            ) {
                 continue
             }
 
-            val lng = koord.getDouble(0)
-            val lat = koord.getDouble(1)
+            val lng =
+                koordinaten.getDouble(0)
 
-            val taxon = o.optJSONObject("taxon")
-                ?: continue
+            val lat =
+                koordinaten.getDouble(1)
 
-            var artId: String? =
-                umgekehrt[taxon.optLong("id")]
+            val taxon =
+                observation
+                    .optJSONObject("taxon")
+                    ?: continue
+
+            var artId =
+                umgekehrt[
+                    taxon.optLong("id")
+                ]
 
             if (artId == null) {
                 val vorfahren =
-                    taxon.optJSONArray("ancestor_ids")
+                    taxon.optJSONArray(
+                        "ancestor_ids"
+                    )
 
                 if (vorfahren != null) {
-                    for (k in 0 until vorfahren.length()) {
-                        val a =
+                    for (
+                        k in 0 until
+                            vorfahren.length()
+                    ) {
+                        val gefunden =
                             umgekehrt[
                                 vorfahren.optLong(k)
                             ]
 
-                        if (a != null) {
-                            artId = a
+                        if (
+                            gefunden != null
+                        ) {
+                            artId = gefunden
                             break
                         }
                     }
                 }
             }
 
-            val gefunden = artId ?: continue
+            val gefunden =
+                artId ?: continue
 
             var foto: String? = null
             var credit: String? = null
 
-            val fotos = o.optJSONArray("photos")
+            val fotos =
+                observation.optJSONArray(
+                    "photos"
+                )
 
             if (
                 fotos != null &&
                 fotos.length() > 0
             ) {
-                val f = fotos.getJSONObject(0)
-                val u = f.text("url")
+                val fotoObjekt =
+                    fotos.getJSONObject(0)
 
-                if (u != null) {
-                    foto = u
-                        .replace(
-                            "square",
-                            "medium"
-                        )
-                        .replace(
-                            "http://",
-                            "https://"
-                        )
+                val urlFoto =
+                    fotoObjekt.text("url")
 
-                    credit = f.text(
-                        "attribution"
-                    )
+                if (urlFoto != null) {
+                    foto =
+                        urlFoto
+                            .replace(
+                                "square",
+                                "medium"
+                            )
+                            .replace(
+                                "http://",
+                                "https://"
+                            )
+
+                    credit =
+                        fotoObjekt.text(
+                            "attribution"
+                        )
                 }
             }
 
             liste += Fund(
-                id = o.optLong("id").toString(),
+                id =
+                    "inat:" +
+                        observation
+                            .optLong("id")
+                            .toString(),
                 artId = gefunden,
                 lat = lat,
                 lng = lng,
-                datum = o.text("observed_on"),
+                datum =
+                    observation.text(
+                        "observed_on"
+                    ),
                 fotoUrl = foto,
                 fotoCredit = credit,
                 bestaetigt =
-                    o.optString(
+                    observation.optString(
                         "quality_grade"
                     ) == "research",
                 ungenau =
-                    o.optBoolean(
+                    observation.optBoolean(
                         "obscured",
                         false
+                    ),
+                quelle = "iNaturalist"
+            )
+        }
+
+        return liste
+    }
+}
+
+object Gbif {
+
+    private const val BASIS =
+        "https://api.gbif.org/v1"
+
+    private suspend fun taxonKey(
+        lateinisch: String
+    ): Long? {
+        val url =
+            BASIS +
+                "/species/match?name=" +
+                URLEncoder.encode(
+                    lateinisch,
+                    "UTF-8"
+                ) +
+                "&verbose=false"
+
+        val result =
+            holeJson(url)
+
+        val rank =
+            result.optString("rank")
+
+        val status =
+            result.optString("status")
+
+        val key =
+            result.optLong(
+                "usageKey",
+                0L
+            )
+
+        if (
+            key <= 0L ||
+            rank.lowercase() !=
+            "species"
+        ) {
+            return null
+        }
+
+        if (
+            status.equals(
+                "synonym",
+                true
+            )
+        ) {
+            val akzeptiert =
+                result.optLong(
+                    "acceptedUsageKey",
+                    0L
+                )
+
+            if (
+                akzeptiert > 0L
+            ) {
+                return akzeptiert
+            }
+        }
+
+        return key
+    }
+
+    private suspend fun taxonKeySicher(
+        lateinisch: String
+    ): Long? {
+        return try {
+            taxonKey(lateinisch)
+        } catch (
+            e: CancellationException
+        ) {
+            throw e
+        } catch (
+            e: Exception
+        ) {
+            null
+        }
+    }
+
+    suspend fun taxonKeys(
+        arten: List<Pilzart>
+    ): Map<String, Long> {
+        val ergebnis =
+            HashMap<String, Long>()
+
+        val gruppen =
+            arten.chunked(4)
+
+        for (
+            index in gruppen.indices
+        ) {
+            val gruppe =
+                gruppen[index]
+
+            val antworten =
+                coroutineScope {
+                    gruppe.map { art ->
+                        async {
+                            art.id to
+                                taxonKeySicher(
+                                    art.lateinisch
+                                )
+                        }
+                    }.awaitAll()
+                }
+
+            for (
+                (artId, taxonId)
+                in antworten
+            ) {
+                if (taxonId != null) {
+                    ergebnis[artId] =
+                        taxonId
+                }
+            }
+
+            if (
+                index < gruppen.lastIndex
+            ) {
+                delay(500)
+            }
+        }
+
+        return ergebnis
+    }
+
+    private fun datumPasst(
+        datum: String?,
+        ab: LocalDate?
+    ): Boolean {
+        if (ab == null) {
+            return true
+        }
+
+        if (datum.isNullOrBlank()) {
+            return false
+        }
+
+        val text =
+            datum.take(10)
+
+        return try {
+            val d =
+                LocalDate.parse(text)
+
+            !d.isBefore(ab)
+        } catch (
+            e: Exception
+        ) {
+            false
+        }
+    }
+
+    suspend fun funde(
+        ids: Map<String, Long>,
+        sued: Double,
+        nord: Double,
+        west: Double,
+        ost: Double,
+        ab: LocalDate?
+    ): List<Fund> {
+        if (ids.isEmpty()) {
+            return emptyList()
+        }
+
+        val umgekehrt =
+            HashMap<Long, String>()
+
+        for (
+            (artId, taxonKey)
+            in ids
+        ) {
+            umgekehrt[taxonKey] =
+                artId
+        }
+
+        val taxonParameter =
+            ids.values.joinToString("") {
+                "&taxon_key=$it"
+            }
+
+        val url =
+            BASIS +
+                "/occurrence/search" +
+                "?limit=300" +
+                "&offset=0" +
+                taxonParameter +
+                "&decimalLatitude=$sued,$nord" +
+                "&decimalLongitude=$west,$ost" +
+                "&has_coordinate=true" +
+                "&has_geospatial_issue=false" +
+                "&occurrence_status=present"
+
+        val result =
+            holeJson(url)
+                .optJSONArray("results")
+                ?: return emptyList()
+
+        val liste =
+            mutableListOf<Fund>()
+
+        for (
+            i in 0 until result.length()
+        ) {
+            val occurrence =
+                result.optJSONObject(i)
+                    ?: continue
+
+            val lat =
+                occurrence.optDouble(
+                    "decimalLatitude",
+                    Double.NaN
+                )
+
+            val lng =
+                occurrence.optDouble(
+                    "decimalLongitude",
+                    Double.NaN
+                )
+
+            if (
+                lat.isNaN() ||
+                lng.isNaN()
+            ) {
+                continue
+            }
+
+            if (
+                lat < sued ||
+                lat > nord ||
+                lng < west ||
+                lng > ost
+            ) {
+                continue
+            }
+
+            val taxonKey =
+                occurrence.optLong(
+                    "taxonKey",
+                    0L
+                )
+
+            var artId =
+                umgekehrt[taxonKey]
+
+            if (artId == null) {
+                val speciesKey =
+                    occurrence.optLong(
+                        "speciesKey",
+                        0L
                     )
+
+                artId =
+                    umgekehrt[
+                        speciesKey
+                    ]
+            }
+
+            val gefunden =
+                artId ?: continue
+
+            val datum =
+                occurrence.text(
+                    "eventDate"
+                ) ?: occurrence.text(
+                    "verbatimEventDate"
+                )
+
+            if (
+                !datumPasst(
+                    datum,
+                    ab
+                )
+            ) {
+                continue
+            }
+
+            val key =
+                occurrence.optLong(
+                    "key",
+                    0L
+                )
+
+            if (key <= 0L) {
+                continue
+            }
+
+            val basis =
+                occurrence.text(
+                    "basisOfRecord"
+                )
+
+            val qualitaet =
+                occurrence.text(
+                    "occurrenceStatus"
+                )
+
+            liste += Fund(
+                id =
+                    "gbif:$key",
+                artId = gefunden,
+                lat = lat,
+                lng = lng,
+                datum = datum,
+                fotoUrl = null,
+                fotoCredit = null,
+                bestaetigt =
+                    basis != null,
+                ungenau =
+                    occurrence.optBoolean(
+                        "hasGeospatialIssue",
+                        false
+                    ),
+                quelle = "GBIF"
             )
         }
 
@@ -313,14 +732,22 @@ object OpenMeteo {
                 (
                     (wert - untereGrenze) /
                         (optimalMin - untereGrenze)
-                    ).coerceIn(0.0, 1.0)
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
             }
 
             else -> {
                 (
                     (obereGrenze - wert) /
                         (obereGrenze - optimalMax)
-                    ).coerceIn(0.0, 1.0)
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
             }
         }
     }
@@ -338,8 +765,9 @@ object OpenMeteo {
                 "&forecast_days=1" +
                 "&timezone=auto"
 
-        val d = holeJson(url)
-            .getJSONObject("daily")
+        val d =
+            holeJson(url)
+                .getJSONObject("daily")
 
         val regen =
             d.getJSONArray(
@@ -353,57 +781,69 @@ object OpenMeteo {
 
         var regen14 = 0.0
 
-        for (i in 0 until regen.length()) {
-            regen14 += regen.optDouble(
-                i,
-                0.0
-            )
+        for (
+            i in 0 until regen.length()
+        ) {
+            regen14 +=
+                regen.optDouble(
+                    i,
+                    0.0
+                )
         }
 
         var regen7 = 0.0
 
         val regen7Start =
-            (regen.length() - 7)
-                .coerceAtLeast(0)
+            (
+                regen.length() - 7
+            ).coerceAtLeast(0)
 
         for (
-            i in regen7Start until regen.length()
+            i in regen7Start until
+                regen.length()
         ) {
-            regen7 += regen.optDouble(
-                i,
-                0.0
-            )
+            regen7 +=
+                regen.optDouble(
+                    i,
+                    0.0
+                )
         }
 
         var regen3 = 0.0
 
         val regen3Start =
-            (regen.length() - 3)
-                .coerceAtLeast(0)
+            (
+                regen.length() - 3
+            ).coerceAtLeast(0)
 
         for (
-            i in regen3Start until regen.length()
+            i in regen3Start until
+                regen.length()
         ) {
-            regen3 += regen.optDouble(
-                i,
-                0.0
-            )
+            regen3 +=
+                regen.optDouble(
+                    i,
+                    0.0
+                )
         }
 
         var summe = 0.0
         var n = 0
 
         val tempStart =
-            (temp.length() - 7)
-                .coerceAtLeast(0)
+            (
+                temp.length() - 7
+            ).coerceAtLeast(0)
 
         for (
-            i in tempStart until temp.length()
+            i in tempStart until
+                temp.length()
         ) {
-            val t = temp.optDouble(
-                i,
-                Double.NaN
-            )
+            val t =
+                temp.optDouble(
+                    i,
+                    Double.NaN
+                )
 
             if (!t.isNaN()) {
                 summe += t
@@ -411,46 +851,47 @@ object OpenMeteo {
             }
         }
 
-        val temp7 = if (n > 0) {
-            summe / n
-        } else {
-            10.0
-        }
+        val temp7 =
+            if (n > 0) {
+                summe / n
+            } else {
+                10.0
+            }
 
         val regen3Score =
             bereichsScore(
-                wert = regen3,
-                optimalMin = 3.0,
-                optimalMax = 18.0,
-                untereGrenze = 0.0,
-                obereGrenze = 35.0
+                regen3,
+                3.0,
+                18.0,
+                0.0,
+                35.0
             )
 
         val regen7Score =
             bereichsScore(
-                wert = regen7,
-                optimalMin = 10.0,
-                optimalMax = 35.0,
-                untereGrenze = 0.0,
-                obereGrenze = 70.0
+                regen7,
+                10.0,
+                35.0,
+                0.0,
+                70.0
             )
 
         val regen14Score =
             bereichsScore(
-                wert = regen14,
-                optimalMin = 20.0,
-                optimalMax = 65.0,
-                untereGrenze = 0.0,
-                obereGrenze = 120.0
+                regen14,
+                20.0,
+                65.0,
+                0.0,
+                120.0
             )
 
         val tempScore =
             bereichsScore(
-                wert = temp7,
-                optimalMin = 8.0,
-                optimalMax = 18.0,
-                untereGrenze = 2.0,
-                obereGrenze = 24.0
+                temp7,
+                8.0,
+                18.0,
+                2.0,
+                24.0
             )
 
         val index =
@@ -459,8 +900,12 @@ object OpenMeteo {
                     regen7Score * 0.35 +
                     regen14Score * 0.20 +
                     tempScore * 0.25
-                ).toFloat()
-                    .coerceIn(0f, 1f)
+                )
+                .toFloat()
+                .coerceIn(
+                    0f,
+                    1f
+                )
 
         return Wetter(
             regen14 = regen14,

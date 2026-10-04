@@ -1,6 +1,19 @@
 package de.sporadar
 
-val MONATE = listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+val MONATE = listOf(
+    "Jan",
+    "Feb",
+    "Mär",
+    "Apr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Dez"
+)
 
 data class Pilzart(
     val id: String,
@@ -12,11 +25,15 @@ data class Pilzart(
     val saisonBis: Int,
     val hinweis: String
 ) {
-    val saison: String get() = "${MONATE[saisonVon - 1]} – ${MONATE[saisonBis - 1]}"
+    val saison: String
+        get() = "${MONATE[saisonVon - 1]} – ${MONATE[saisonBis - 1]}"
 
     fun istSaison(monat: Int): Boolean =
-        if (saisonVon <= saisonBis) monat in saisonVon..saisonBis
-        else monat >= saisonVon || monat <= saisonBis
+        if (saisonVon <= saisonBis) {
+            monat in saisonVon..saisonBis
+        } else {
+            monat >= saisonVon || monat <= saisonBis
+        }
 }
 
 data class Fund(
@@ -28,115 +45,346 @@ data class Fund(
     val fotoUrl: String?,
     val fotoCredit: String?,
     val bestaetigt: Boolean,
-    val ungenau: Boolean
+    val ungenau: Boolean,
+    val quelle: String = "Unbekannt"
 )
 
 object Daten {
-    // Häufig gesammelte essbare Pilze in Deutschland. Hinweise sind Kurzinfos,
-    // ersetzen NIEMALS die Bestimmung durch einen Pilzsachverständigen.
     val arten = listOf(
-        Pilzart("steinpilz", "Gemeiner Steinpilz", "Boletus edulis", 0xFFFFB020,
-            listOf("Fichte", "Buche", "Eiche", "Kiefer"), 6, 10,
-            "Nicht mit dem bitteren Gallenröhrling verwechseln."),
-        Pilzart("sommersteinpilz", "Sommer-Steinpilz", "Boletus reticulatus", 0xFFFFC04D,
-            listOf("Eiche", "Buche"), 5, 9,
-            "Nicht mit dem bitteren Gallenröhrling verwechseln."),
-        Pilzart("kiefernsteinpilz", "Kiefern-Steinpilz", "Boletus pinophilus", 0xFFE0902A,
-            listOf("Kiefer", "Fichte"), 6, 10,
-            "Nicht mit dem bitteren Gallenröhrling verwechseln."),
-        Pilzart("maronenroehrling", "Maronenröhrling", "Imleria badia", 0xFFD98A4E,
-            listOf("Kiefer", "Fichte"), 7, 11,
-            "Poren laufen bei Druck blaugrün an – typisch."),
-        Pilzart("birkenpilz", "Birkenpilz", "Leccinum scabrum", 0xFFE8E2C6,
-            listOf("Birke"), 6, 10,
-            "Nur gut durchgegart essen."),
-        Pilzart("birkenrotkappe", "Birken-Rotkappe", "Leccinum versipelle", 0xFFFF7A3D,
-            listOf("Birke"), 7, 10,
-            "Nur gut durchgegart essen."),
-        Pilzart("espenrotkappe", "Espen-Rotkappe", "Leccinum aurantiacum", 0xFFFF6A2E,
-            listOf("Espe", "Pappel"), 7, 10,
-            "Nur gut durchgegart essen."),
-        Pilzart("goldroehrling", "Goldröhrling", "Suillus grevillei", 0xFFF2B01E,
-            listOf("Lärche"), 7, 10,
-            "Wächst nur unter Lärchen. Hutschleimhaut abziehen."),
-        Pilzart("butterpilz", "Butterpilz", "Suillus luteus", 0xFFB9E36B,
-            listOf("Kiefer"), 7, 11,
-            "Schleimige Huthaut vor der Zubereitung abziehen."),
-        Pilzart("sandroehrling", "Sandröhrling", "Suillus variegatus", 0xFFCFA34A,
-            listOf("Kiefer"), 7, 11,
-            "Huthaut abziehen."),
-        Pilzart("kuhroehrling", "Kuhröhrling", "Suillus bovinus", 0xFFD8B27A,
-            listOf("Kiefer"), 7, 11,
-            "Huthaut abziehen, Fleisch ist recht weich."),
-        Pilzart("ziegenlippe", "Ziegenlippe", "Xerocomus subtomentosus", 0xFFC9A66B,
-            listOf("Buche", "Eiche", "Fichte"), 6, 10,
-            "Nur junge, feste Exemplare sammeln."),
-        Pilzart("rotfussroehrling", "Rotfußröhrling", "Xerocomellus chrysenteron", 0xFFB5651D,
-            listOf("Buche", "Eiche", "Fichte"), 6, 10,
-            "Nur junge Exemplare sammeln."),
-        Pilzart("hexenroehrling", "Flockenstieliger Hexenröhrling", "Neoboletus erythropus", 0xFFB3341F,
-            listOf("Fichte", "Buche", "Eiche"), 6, 10,
-            "Roh giftig – nur gut durchgegart. Nicht mit dem Satanspilz verwechseln."),
-        Pilzart("pfifferling", "Echter Pfifferling", "Cantharellus cibarius", 0xFFFFD23F,
-            listOf("Buche", "Fichte", "Eiche", "Kiefer"), 6, 10,
-            "Nicht mit Falschem Pfifferling oder Ölbaumpilz verwechseln."),
-        Pilzart("trompetenpfifferling", "Trompetenpfifferling", "Craterellus tubaeformis", 0xFFE6B422,
-            listOf("Fichte"), 9, 12,
-            "Wächst oft in Moospolstern unter Nadelbäumen."),
-        Pilzart("herbsttrompete", "Herbsttrompete", "Craterellus cornucopioides", 0xFF8C7B6A,
-            listOf("Buche", "Eiche"), 7, 11,
-            "Gut trocknbar, aromatischer Würzpilz."),
-        Pilzart("semmelstoppelpilz", "Semmelstoppelpilz", "Hydnum repandum", 0xFFF0C89A,
-            listOf("Fichte", "Buche", "Eiche"), 8, 11,
-            "Stacheln statt Lamellen – gut erkennbar."),
-        Pilzart("parasol", "Parasol", "Macrolepiota procera", 0xFFC8B79E,
-            listOf("Waldrand", "Wiese"), 7, 10,
-            "Nur mit schlangenartig gemustertem Stiel – nicht mit Gift-Schirmlingen verwechseln."),
-        Pilzart("wiesenchampignon", "Wiesen-Champignon", "Agaricus campestris", 0xFFF2D5D9,
-            listOf("Wiese", "Weide"), 8, 10,
-            "Lamellen rosa bis braun. Bei weißen Lamellen Vorsicht: Knollenblätterpilz!"),
-        Pilzart("schafchampignon", "Schaf-Champignon", "Agaricus arvensis", 0xFFF5E1E4,
-            listOf("Wiese", "Waldrand"), 7, 10,
-            "Anisgeruch. Nicht mit Knollenblätterpilz oder Karbol-Champignon verwechseln."),
-        Pilzart("krauseglucke", "Krause Glucke", "Sparassis crispa", 0xFFF7E8A4,
-            listOf("Kiefer"), 8, 11,
-            "Nur junge, saubere Exemplare sammeln."),
-        Pilzart("hallimasch", "Hallimasch", "Armillaria mellea", 0xFFC68642,
-            listOf("Buche", "Eiche", "Fichte"), 9, 11,
-            "Roh giftig – nur gut durchgegart. Verwechslung mit Gifthäubling möglich."),
-        Pilzart("austernseitling", "Austernseitling", "Pleurotus ostreatus", 0xFFB0A8B9,
-            listOf("Buche", "Pappel", "Weide"), 10, 3,
-            "Wächst auf Laubholz, Hüte mit seitlichem Stiel."),
-        Pilzart("maipilz", "Mai-Ritterling", "Calocybe gambosa", 0xFFE9E4D0,
-            listOf("Wiese", "Waldrand"), 4, 6,
-            "Mehlgeruch. Verwechslung mit Risspilzen möglich."),
-        Pilzart("rotelritterling", "Violetter Rötelritterling", "Lepista nuda", 0xFF9B6FD1,
-            listOf("Fichte", "Buche"), 10, 12,
-            "Roh giftig – nur gut durchgegart."),
-        Pilzart("riesenbovist", "Riesenbovist", "Calvatia gigantea", 0xFFEFEFEF,
-            listOf("Wiese", "Weide"), 8, 10,
-            "Nur essen, wenn das Fleisch innen ganz weiß ist."),
-        Pilzart("schopftintling", "Schopftintling", "Coprinus comatus", 0xFFD9D9D9,
-            listOf("Wiese", "Wegrand"), 5, 11,
-            "Sofort verarbeiten, dazu keinen Alkohol trinken."),
-        Pilzart("speisetaeubling", "Speisetäubling", "Russula vesca", 0xFFD4A5A5,
-            listOf("Buche", "Eiche"), 7, 10,
-            "Schmeckt mild. Nicht mit Knollenblätterpilz verwechseln."),
-        Pilzart("frauentaeubling", "Frauen-Täubling", "Russula cyanoxantha", 0xFF9C8FBF,
-            listOf("Buche", "Eiche"), 7, 10,
-            "Lamellen biegsam, nicht brüchig."),
-        Pilzart("edelreizker", "Edelreizker", "Lactarius deliciosus", 0xFFFF9F45,
-            listOf("Kiefer", "Fichte"), 8, 11,
-            "Orangefarbene Milch, Schnittstellen färben sich grün."),
-        Pilzart("braetling", "Brätling", "Lactarius volemus", 0xFFB57644,
-            listOf("Buche", "Eiche", "Fichte"), 7, 10,
-            "Weiße Milch, Geruch nach Hering."),
-        Pilzart("schwefelporling", "Schwefelporling", "Laetiporus sulphureus", 0xFFFFE135,
-            listOf("Eiche", "Weide"), 5, 10,
-            "Nur junge Exemplare, gut durchgegart, nicht von Nadelholz."),
+        Pilzart(
+            "steinpilz",
+            "Gemeiner Steinpilz",
+            "Boletus edulis",
+            0xFFFFB020,
+            listOf("Fichte", "Buche", "Eiche", "Kiefer"),
+            6,
+            10,
+            "Nicht mit dem bitteren Gallenröhrling verwechseln."
+        ),
+        Pilzart(
+            "sommersteinpilz",
+            "Sommer-Steinpilz",
+            "Boletus reticulatus",
+            0xFFFFC04D,
+            listOf("Eiche", "Buche"),
+            5,
+            9,
+            "Nicht mit dem bitteren Gallenröhrling verwechseln."
+        ),
+        Pilzart(
+            "kiefernsteinpilz",
+            "Kiefern-Steinpilz",
+            "Boletus pinophilus",
+            0xFFE0902A,
+            listOf("Kiefer", "Fichte"),
+            6,
+            10,
+            "Nicht mit dem bitteren Gallenröhrling verwechseln."
+        ),
+        Pilzart(
+            "maronenroehrling",
+            "Maronenröhrling",
+            "Imleria badia",
+            0xFFD98A4E,
+            listOf("Kiefer", "Fichte"),
+            7,
+            11,
+            "Poren laufen bei Druck blaugrün an – typisch."
+        ),
+        Pilzart(
+            "birkenpilz",
+            "Birkenpilz",
+            "Leccinum scabrum",
+            0xFFE8E2C6,
+            listOf("Birke"),
+            6,
+            10,
+            "Nur gut durchgegart essen."
+        ),
+        Pilzart(
+            "birkenrotkappe",
+            "Birken-Rotkappe",
+            "Leccinum versipelle",
+            0xFFFF7A3D,
+            listOf("Birke"),
+            7,
+            10,
+            "Nur gut durchgegart essen."
+        ),
+        Pilzart(
+            "espenrotkappe",
+            "Espen-Rotkappe",
+            "Leccinum aurantiacum",
+            0xFFFF6A2E,
+            listOf("Espe", "Pappel"),
+            7,
+            10,
+            "Nur gut durchgegart essen."
+        ),
+        Pilzart(
+            "goldroehrling",
+            "Goldröhrling",
+            "Suillus grevillei",
+            0xFFF2B01E,
+            listOf("Lärche"),
+            7,
+            10,
+            "Wächst nur unter Lärchen. Hutschleimhaut abziehen."
+        ),
+        Pilzart(
+            "butterpilz",
+            "Butterpilz",
+            "Suillus luteus",
+            0xFFB9E36B,
+            listOf("Kiefer"),
+            7,
+            11,
+            "Schleimige Huthaut vor der Zubereitung abziehen."
+        ),
+        Pilzart(
+            "sandroehrling",
+            "Sandröhrling",
+            "Suillus variegatus",
+            0xFFCFA34A,
+            listOf("Kiefer"),
+            7,
+            11,
+            "Huthaut abziehen."
+        ),
+        Pilzart(
+            "kuhroehrling",
+            "Kuhröhrling",
+            "Suillus bovinus",
+            0xFFD8B27A,
+            listOf("Kiefer"),
+            7,
+            11,
+            "Huthaut abziehen, Fleisch ist recht weich."
+        ),
+        Pilzart(
+            "ziegenlippe",
+            "Ziegenlippe",
+            "Xerocomus subtomentosus",
+            0xFFC9A66B,
+            listOf("Buche", "Eiche", "Fichte"),
+            6,
+            10,
+            "Nur junge, feste Exemplare sammeln."
+        ),
+        Pilzart(
+            "rotfussroehrling",
+            "Rotfußröhrling",
+            "Xerocomellus chrysenteron",
+            0xFFB5651D,
+            listOf("Buche", "Eiche", "Fichte"),
+            6,
+            10,
+            "Nur junge Exemplare sammeln."
+        ),
+        Pilzart(
+            "hexenroehrling",
+            "Flockenstieliger Hexenröhrling",
+            "Neoboletus erythropus",
+            0xFFB3341F,
+            listOf("Fichte", "Buche", "Eiche"),
+            6,
+            10,
+            "Roh giftig – nur gut durchgegart. Nicht mit dem Satanspilz verwechseln."
+        ),
+        Pilzart(
+            "pfifferling",
+            "Echter Pfifferling",
+            "Cantharellus cibarius",
+            0xFFFFD23F,
+            listOf("Buche", "Fichte", "Eiche", "Kiefer"),
+            6,
+            10,
+            "Nicht mit Falschem Pfifferling oder Ölbaumpilz verwechseln."
+        ),
+        Pilzart(
+            "trompetenpfifferling",
+            "Trompetenpfifferling",
+            "Craterellus tubaeformis",
+            0xFFE6B422,
+            listOf("Fichte"),
+            9,
+            12,
+            "Wächst oft in Moospolstern unter Nadelbäumen."
+        ),
+        Pilzart(
+            "herbsttrompete",
+            "Herbsttrompete",
+            "Craterellus cornucopioides",
+            0xFF8C7B6A,
+            listOf("Buche", "Eiche"),
+            7,
+            11,
+            "Gut trocknbar, aromatischer Würzpilz."
+        ),
+        Pilzart(
+            "semmelstoppelpilz",
+            "Semmelstoppelpilz",
+            "Hydnum repandum",
+            0xFFF0C89A,
+            listOf("Fichte", "Buche", "Eiche"),
+            8,
+            11,
+            "Stacheln statt Lamellen – gut erkennbar."
+        ),
+        Pilzart(
+            "parasol",
+            "Parasol",
+            "Macrolepiota procera",
+            0xFFC8B79E,
+            listOf("Waldrand", "Wiese"),
+            7,
+            10,
+            "Nur mit schlangenartig gemustertem Stiel – nicht mit Gift-Schirmlingen verwechseln."
+        ),
+        Pilzart(
+            "wiesenchampignon",
+            "Wiesen-Champignon",
+            "Agaricus campestris",
+            0xFFF2D5D9,
+            listOf("Wiese", "Weide"),
+            8,
+            10,
+            "Lamellen rosa bis braun. Bei weißen Lamellen Vorsicht."
+        ),
+        Pilzart(
+            "schafchampignon",
+            "Schaf-Champignon",
+            "Agaricus arvensis",
+            0xFFF5E1E4,
+            listOf("Wiese", "Waldrand"),
+            7,
+            10,
+            "Anisgeruch. Nicht mit Giftpilzen verwechseln."
+        ),
+        Pilzart(
+            "krauseglucke",
+            "Krause Glucke",
+            "Sparassis crispa",
+            0xFFF7E8A4,
+            listOf("Kiefer"),
+            8,
+            11,
+            "Nur junge, saubere Exemplare sammeln."
+        ),
+        Pilzart(
+            "hallimasch",
+            "Hallimasch",
+            "Armillaria mellea",
+            0xFFC68642,
+            listOf("Buche", "Eiche", "Fichte"),
+            9,
+            11,
+            "Roh giftig – nur gut durchgegart."
+        ),
+        Pilzart(
+            "austernseitling",
+            "Austernseitling",
+            "Pleurotus ostreatus",
+            0xFFB0A8B9,
+            listOf("Buche", "Pappel", "Weide"),
+            10,
+            3,
+            "Wächst auf Laubholz."
+        ),
+        Pilzart(
+            "maipilz",
+            "Mai-Ritterling",
+            "Calocybe gambosa",
+            0xFFE9E4D0,
+            listOf("Wiese", "Waldrand"),
+            4,
+            6,
+            "Mehlgeruch. Verwechslung mit Risspilzen möglich."
+        ),
+        Pilzart(
+            "rotelritterling",
+            "Violetter Rötelritterling",
+            "Lepista nuda",
+            0xFF9B6FD1,
+            listOf("Fichte", "Buche"),
+            10,
+            12,
+            "Roh giftig – nur gut durchgegart."
+        ),
+        Pilzart(
+            "riesenbovist",
+            "Riesenbovist",
+            "Calvatia gigantea",
+            0xFFEFEFEF,
+            listOf("Wiese", "Weide"),
+            8,
+            10,
+            "Nur essen, wenn das Fleisch innen ganz weiß ist."
+        ),
+        Pilzart(
+            "schopftintling",
+            "Schopftintling",
+            "Coprinus comatus",
+            0xFFD9D9D9,
+            listOf("Wiese", "Wegrand"),
+            5,
+            11,
+            "Sofort verarbeiten."
+        ),
+        Pilzart(
+            "speisetaeubling",
+            "Speisetäubling",
+            "Russula vesca",
+            0xFFD4A5A5,
+            listOf("Buche", "Eiche"),
+            7,
+            10,
+            "Schmeckt mild."
+        ),
+        Pilzart(
+            "frauentaeubling",
+            "Frauen-Täubling",
+            "Russula cyanoxantha",
+            0xFF9C8FBF,
+            listOf("Buche", "Eiche"),
+            7,
+            10,
+            "Lamellen biegsam, nicht brüchig."
+        ),
+        Pilzart(
+            "edelreizker",
+            "Edelreizker",
+            "Lactarius deliciosus",
+            0xFFFF9F45,
+            listOf("Kiefer", "Fichte"),
+            8,
+            11,
+            "Orangefarbene Milch."
+        ),
+        Pilzart(
+            "braetling",
+            "Brätling",
+            "Lactarius volemus",
+            0xFFB57644,
+            listOf("Buche", "Eiche", "Fichte"),
+            7,
+            10,
+            "Weiße Milch."
+        ),
+        Pilzart(
+            "schwefelporling",
+            "Schwefelporling",
+            "Laetiporus sulphureus",
+            0xFFFFE135,
+            listOf("Eiche", "Weide"),
+            5,
+            10,
+            "Nur junge Exemplare."
+        )
     )
 
-    fun art(id: String) = arten.first { it.id == id }
+    fun art(id: String): Pilzart =
+        arten.first {
+            it.id == id
+        }
 }
-
-// ENDE
