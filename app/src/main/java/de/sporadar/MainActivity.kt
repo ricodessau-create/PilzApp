@@ -50,8 +50,8 @@ import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.clustering.Clustering
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -476,6 +476,7 @@ fun SporadarScreen(
                 standortHinweis = standortHinweis,
                 wetter = vm.wetter,
                 fund = gewaehlt,
+                standort = standort,
                 onSchliessen = {
                     vm.waehle(null)
                 }
