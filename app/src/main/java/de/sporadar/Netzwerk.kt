@@ -22,8 +22,16 @@ private suspend fun holeJson(url: String): JSONObject = withContext(Dispatchers.
 
     try {
         val code = c.responseCode
-        if (code !in 200..299) error("HTTP $code")
-        JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+
+        if (code !in 200..299) {
+            error("HTTP $code")
+        }
+
+        JSONObject(
+            c.inputStream.bufferedReader().use {
+                it.readText()
+            }
+        )
     } finally {
         c.disconnect()
     }
@@ -31,30 +39,55 @@ private suspend fun holeJson(url: String): JSONObject = withContext(Dispatchers.
 
 private fun JSONObject.text(name: String): String? {
     if (isNull(name)) return null
+
     val s = optString(name)
-    return if (s.isBlank()) null else s
+
+    return if (s.isBlank()) {
+        null
+    } else {
+        s
+    }
 }
 
 object Inat {
     private const val BASIS = "https://api.inaturalist.org/v1"
 
-    private suspend fun taxonId(lateinisch: String): Long? {
+    private suspend fun taxonId(
+        lateinisch: String
+    ): Long? {
         val url = BASIS + "/taxa?q=" +
-            URLEncoder.encode(lateinisch, "UTF-8") +
+            URLEncoder.encode(
+                lateinisch,
+                "UTF-8"
+            ) +
             "&rank=species&is_active=true&per_page=5"
 
-        val res = holeJson(url).optJSONArray("results") ?: return null
+        val res = holeJson(url)
+            .optJSONArray("results")
+            ?: return null
+
         var erster: Long? = null
 
         for (i in 0 until res.length()) {
             val t = res.getJSONObject(i)
 
-            if (t.optString("rank") != "species") continue
+            if (t.optString("rank") != "species") {
+                continue
+            }
 
-            val id = t.optLong("id", 0L)
-            if (id == 0L) continue
+            val id = t.optLong(
+                "id",
+                0L
+            )
 
-            if (t.optString("name").equals(lateinisch, true)) {
+            if (id == 0L) {
+                continue
+            }
+
+            if (
+                t.optString("name")
+                    .equals(lateinisch, true)
+            ) {
                 return id
             }
 
@@ -66,7 +99,9 @@ object Inat {
         return erster
     }
 
-    private suspend fun taxonIdSicher(lateinisch: String): Long? {
+    private suspend fun taxonIdSicher(
+        lateinisch: String
+    ): Long? {
         return try {
             taxonId(lateinisch)
         } catch (e: CancellationException) {
@@ -76,14 +111,22 @@ object Inat {
         }
     }
 
-    suspend fun taxonIds(arten: List<Pilzart>): Map<String, Long> {
+    suspend fun taxonIds(
+        arten: List<Pilzart>
+    ): Map<String, Long> {
         val ergebnis = HashMap<String, Long>()
 
-        for ((index, gruppe) in arten.chunked(4).withIndex()) {
+        for (
+            index in arten.chunked(4).indices
+        ) {
+            val gruppe = arten.chunked(4)[index]
+
             val antworten = coroutineScope {
                 gruppe.map { art ->
                     async {
-                        art.id to taxonIdSicher(art.lateinisch)
+                        art.id to taxonIdSicher(
+                            art.lateinisch
+                        )
                     }
                 }.awaitAll()
             }
@@ -94,7 +137,9 @@ object Inat {
                 }
             }
 
-            if (index < arten.chunked(4).lastIndex) {
+            if (
+                index < arten.chunked(4).lastIndex
+            ) {
                 delay(500)
             }
         }
@@ -110,7 +155,9 @@ object Inat {
         ost: Double,
         ab: LocalDate?
     ): List<Fund> {
-        if (ids.isEmpty()) return emptyList()
+        if (ids.isEmpty()) {
+            return emptyList()
+        }
 
         val umgekehrt = HashMap<Long, String>()
 
@@ -124,22 +171,26 @@ object Inat {
             ""
         }
 
-        val url = BASIS + "/observations?taxon_id=" +
-            ids.values.joinToString(",") +
-            "&swlat=" + sued +
-            "&swlng=" + west +
-            "&nelat=" + nord +
-            "&nelng=" + ost +
-            d1 +
-            "&photos=true" +
-            "&geo=true" +
-            "&quality_grade=research,needs_id" +
-            "&order_by=observed_on" +
-            "&order=desc" +
-            "&per_page=200" +
-            "&locale=de"
+        val url =
+            BASIS +
+                "/observations?taxon_id=" +
+                ids.values.joinToString(",") +
+                "&swlat=" + sued +
+                "&swlng=" + west +
+                "&nelat=" + nord +
+                "&nelng=" + ost +
+                d1 +
+                "&photos=true" +
+                "&geo=true" +
+                "&quality_grade=research,needs_id" +
+                "&order_by=observed_on" +
+                "&order=desc" +
+                "&per_page=200" +
+                "&locale=de"
 
-        val res = holeJson(url).getJSONArray("results")
+        val res = holeJson(url)
+            .getJSONArray("results")
+
         val liste = mutableListOf<Fund>()
 
         for (i in 0 until res.length()) {
@@ -149,21 +200,29 @@ object Inat {
                 ?.optJSONArray("coordinates")
                 ?: continue
 
-            if (koord.length() < 2) continue
+            if (koord.length() < 2) {
+                continue
+            }
 
             val lng = koord.getDouble(0)
             val lat = koord.getDouble(1)
 
-            val taxon = o.optJSONObject("taxon") ?: continue
+            val taxon = o.optJSONObject("taxon")
+                ?: continue
 
-            var artId: String? = umgekehrt[taxon.optLong("id")]
+            var artId: String? =
+                umgekehrt[taxon.optLong("id")]
 
             if (artId == null) {
-                val vorfahren = taxon.optJSONArray("ancestor_ids")
+                val vorfahren =
+                    taxon.optJSONArray("ancestor_ids")
 
                 if (vorfahren != null) {
                     for (k in 0 until vorfahren.length()) {
-                        val a = umgekehrt[vorfahren.optLong(k)]
+                        val a =
+                            umgekehrt[
+                                vorfahren.optLong(k)
+                            ]
 
                         if (a != null) {
                             artId = a
@@ -180,16 +239,27 @@ object Inat {
 
             val fotos = o.optJSONArray("photos")
 
-            if (fotos != null && fotos.length() > 0) {
+            if (
+                fotos != null &&
+                fotos.length() > 0
+            ) {
                 val f = fotos.getJSONObject(0)
                 val u = f.text("url")
 
                 if (u != null) {
                     foto = u
-                        .replace("square", "medium")
-                        .replace("http://", "https://")
+                        .replace(
+                            "square",
+                            "medium"
+                        )
+                        .replace(
+                            "http://",
+                            "https://"
+                        )
 
-                    credit = f.text("attribution")
+                    credit = f.text(
+                        "attribution"
+                    )
                 }
             }
 
@@ -201,8 +271,15 @@ object Inat {
                 datum = o.text("observed_on"),
                 fotoUrl = foto,
                 fotoCredit = credit,
-                bestaetigt = o.optString("quality_grade") == "research",
-                ungenau = o.optBoolean("obscured", false)
+                bestaetigt =
+                    o.optString(
+                        "quality_grade"
+                    ) == "research",
+                ungenau =
+                    o.optBoolean(
+                        "obscured",
+                        false
+                    )
             )
         }
 
@@ -212,36 +289,121 @@ object Inat {
 
 data class Wetter(
     val regen14: Double,
+    val regen7: Double,
+    val regen3: Double,
     val temp7: Double,
     val index: Float
 )
 
 object OpenMeteo {
-    suspend fun hole(lat: Double, lng: Double): Wetter {
+
+    private fun bereichsScore(
+        wert: Double,
+        optimalMin: Double,
+        optimalMax: Double,
+        untereGrenze: Double,
+        obereGrenze: Double
+    ): Double {
+        return when {
+            wert in optimalMin..optimalMax -> {
+                1.0
+            }
+
+            wert < optimalMin -> {
+                (
+                    (wert - untereGrenze) /
+                        (optimalMin - untereGrenze)
+                    ).coerceIn(0.0, 1.0)
+            }
+
+            else -> {
+                (
+                    (obereGrenze - wert) /
+                        (obereGrenze - optimalMax)
+                    ).coerceIn(0.0, 1.0)
+            }
+        }
+    }
+
+    suspend fun hole(
+        lat: Double,
+        lng: Double
+    ): Wetter {
         val url =
-            "https://api.open-meteo.com/v1/forecast?latitude=$lat" +
+            "https://api.open-meteo.com/v1/forecast" +
+                "?latitude=$lat" +
                 "&longitude=$lng" +
                 "&daily=precipitation_sum,temperature_2m_mean" +
                 "&past_days=14" +
                 "&forecast_days=1" +
                 "&timezone=auto"
 
-        val d = holeJson(url).getJSONObject("daily")
+        val d = holeJson(url)
+            .getJSONObject("daily")
 
-        val regen = d.getJSONArray("precipitation_sum")
-        val temp = d.getJSONArray("temperature_2m_mean")
+        val regen =
+            d.getJSONArray(
+                "precipitation_sum"
+            )
 
-        var r = 0.0
+        val temp =
+            d.getJSONArray(
+                "temperature_2m_mean"
+            )
+
+        var regen14 = 0.0
 
         for (i in 0 until regen.length()) {
-            r += regen.optDouble(i, 0.0)
+            regen14 += regen.optDouble(
+                i,
+                0.0
+            )
+        }
+
+        var regen7 = 0.0
+
+        val regen7Start =
+            (regen.length() - 7)
+                .coerceAtLeast(0)
+
+        for (
+            i in regen7Start until regen.length()
+        ) {
+            regen7 += regen.optDouble(
+                i,
+                0.0
+            )
+        }
+
+        var regen3 = 0.0
+
+        val regen3Start =
+            (regen.length() - 3)
+                .coerceAtLeast(0)
+
+        for (
+            i in regen3Start until regen.length()
+        ) {
+            regen3 += regen.optDouble(
+                i,
+                0.0
+            )
         }
 
         var summe = 0.0
         var n = 0
 
-        for (i in (temp.length() - 7).coerceAtLeast(0) until temp.length()) {
-            val t = temp.optDouble(i, Double.NaN)
+        val tempStart =
+            (temp.length() - 7)
+                .coerceAtLeast(0)
+
+        for (
+            i in tempStart until temp.length()
+        ) {
+            val t = temp.optDouble(
+                i,
+                Double.NaN
+            )
 
             if (!t.isNaN()) {
                 summe += t
@@ -249,24 +411,63 @@ object OpenMeteo {
             }
         }
 
-        val t7 = if (n > 0) {
+        val temp7 = if (n > 0) {
             summe / n
         } else {
             10.0
         }
 
-        val regenScore = (r / 40.0).coerceIn(0.0, 1.0)
+        val regen3Score =
+            bereichsScore(
+                wert = regen3,
+                optimalMin = 3.0,
+                optimalMax = 18.0,
+                untereGrenze = 0.0,
+                obereGrenze = 35.0
+            )
 
-        val tempScore = when {
-            t7 in 8.0..18.0 -> 1.0
-            t7 < 8.0 -> ((t7 - 2.0) / 6.0).coerceIn(0.0, 1.0)
-            else -> ((24.0 - t7) / 6.0).coerceIn(0.0, 1.0)
-        }
+        val regen7Score =
+            bereichsScore(
+                wert = regen7,
+                optimalMin = 10.0,
+                optimalMax = 35.0,
+                untereGrenze = 0.0,
+                obereGrenze = 70.0
+            )
+
+        val regen14Score =
+            bereichsScore(
+                wert = regen14,
+                optimalMin = 20.0,
+                optimalMax = 65.0,
+                untereGrenze = 0.0,
+                obereGrenze = 120.0
+            )
+
+        val tempScore =
+            bereichsScore(
+                wert = temp7,
+                optimalMin = 8.0,
+                optimalMax = 18.0,
+                untereGrenze = 2.0,
+                obereGrenze = 24.0
+            )
+
+        val index =
+            (
+                regen3Score * 0.20 +
+                    regen7Score * 0.35 +
+                    regen14Score * 0.20 +
+                    tempScore * 0.25
+                ).toFloat()
+                    .coerceIn(0f, 1f)
 
         return Wetter(
-            regen14 = r,
-            temp7 = t7,
-            index = (0.6 * regenScore + 0.4 * tempScore).toFloat()
+            regen14 = regen14,
+            regen7 = regen7,
+            regen3 = regen3,
+            temp7 = temp7,
+            index = index
         )
     }
 }
