@@ -544,7 +544,7 @@ fun SporadarScreen(
         }
 
     Box(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(
                 Farben.Wald
@@ -592,22 +592,19 @@ fun SporadarScreen(
                 onClusterClick = {
                     false
                 },
-                onClusterItemClick = {
-                    item ->
+                onClusterItemClick = { item ->
                     vm.waehle(
                         item.fund.id
                     )
                     true
                 },
-                clusterContent = {
-                    cluster ->
+                clusterContent = { cluster ->
                     PilzClusterIcon(
                         anzahl =
                             cluster.size
                     )
                 },
-                clusterItemContent = {
-                    item ->
+                clusterItemContent = { item ->
                     PilzEinzelMarker(
                         farbe =
                             item.farbe,
@@ -621,15 +618,13 @@ fun SporadarScreen(
         KopfBereich(
             auswahl = vm.auswahl,
             zeitraum = vm.zeitraum,
-            onToggle = {
-                id ->
+            onToggle = { id ->
                 vm.toggle(id)
             },
             onAlle = {
                 vm.alleAnzeigen()
             },
-            onZeitraum = {
-                z ->
+            onZeitraum = { z ->
                 vm.setzeZeitraum(z)
             },
             modifier =
@@ -639,12 +634,12 @@ fun SporadarScreen(
         )
 
         Column(
-            Modifier.align(
+            modifier = Modifier.align(
                 Alignment.BottomCenter
             )
         ) {
             Row(
-                Modifier
+                modifier = Modifier
                     .fillMaxWidth()
                     .padding(
                         start = 16.dp,
@@ -729,4 +724,42 @@ fun SporadarScreen(
                                 }
                             }
                         },
-                
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+                    Text(
+                        text = "📍",
+                        fontSize = 22.sp
+                    )
+                }
+            }
+
+            Spacer(
+                Modifier.height(10.dp)
+            )
+
+            if (fotoUri != null) {
+                FotoHilfe(
+                    uri = fotoUri,
+                    onSchliessen = {
+                        fotoUri = null
+                    }
+                )
+            } else {
+                UnterKarte(
+                    anzahl = vm.funde.size,
+                    laedt = vm.laedt,
+                    meldung = vm.meldung,
+                    standortHinweis =
+                        standortHinweis,
+                    wetter = vm.wetter,
+                    fund = gewaehlt,
+                    standort = standort,
+                    onSchliessen = {
+                        vm.waehle(null)
+                    }
+                )
+            }
+        }
+    }
+}
