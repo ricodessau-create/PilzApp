@@ -16,6 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Zeitraum(val label: String, val tage: Int?) {
@@ -54,15 +55,6 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
     private var ladeNr = 0
     private var wetterPos: Pair<Double, Double>? = null
 
-    private val fundCache = LinkedHashMap<String, CacheEintrag>()
-    private val wetterCache = LinkedHashMap<String, WetterEintrag>()
-
-    private var aktuellerLadeSchluessel: String? = null
-
-    private var taxonIds: Map<String, Long> = leseIds()
-    private val aufgegeben = HashSet<String>()
-    private val idSperre = Mutex()
-
     private data class CacheEintrag(
         val zeitpunkt: Long,
         val funde: List<Fund>
@@ -73,12 +65,23 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         val wetter: Wetter
     )
 
+    private val fundCache = ladePersistentenFundCache()
+    private val wetterCache = LinkedHashMap<String, WetterEintrag>()
+
+    private var aktuellerLadeSchluessel: String? = null
+
+    private var taxonIds: Map<String, Long> = leseIds()
+    private val aufgegeben = HashSet<String>()
+    private val idSperre = Mutex()
+
     private companion object {
         const val FUND_CACHE_DAUER = 3 * 60 * 1000L
+        const val FUND_PERSISTENTER_CACHE_DAUER = 30 * 60 * 1000L
         const val WETTER_CACHE_DAUER = 10 * 60 * 1000L
         const val MAX_FUND_CACHE = 10
         const val MAX_WETTER_CACHE = 6
         const val LADE_DEBOUNCE = 450L
+        const val FUND_CACHE_PREFS_KEY = "fund_cache"
     }
 
     private fun leseIds(): Map<String, Long> {
@@ -174,6 +177,159 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
 
         while (fundCache.size > MAX_FUND_CACHE) {
             fundCache.remove(fundCache.keys.first())
+        }
+
+        speichereFundCache()
+    }
+
+    private fun ladePersistentenFundCache(): LinkedHashMap<String, CacheEintrag> {
+        val cache = LinkedHashMap<String, CacheEintrag>()
+        val roh = prefs.getString(FUND_CACHE_PREFS_KEY, null) ?: return cache
+
+        try {
+            val array = JSONArray(roh)
+            val jetzt = System.currentTimeMillis()
+
+            for (i in 0 until array.length()) {
+                val eintrag = array.optJSONObject(i) ?: continue
+
+                val schluessel = eintrag.optString("schluessel")
+                val zeitpunkt = eintrag.optLong("zeitpunkt", 0L)
+                val fundArray = eintrag.optJSONArray("funde")
+
+                if (schluessel.isBlank() || zeitpunkt <= 0L || fundArray == null) {
+                    continue
+                }
+
+                if (jetzt - zeitpunkt > FUND_PERSISTENTER_CACHE_DAUER) {
+                    continue
+                }
+
+                val funde = mutableListOf<Fund>()
+
+                for (j in 0 until fundArray.length()) {
+                    val fundObject = fundArray.optJSONObject(j) ?: continue
+
+                    val id = fundObject.optString("id")
+                    val artId = fundObject.optString("artId")
+
+                    if (id.isBlank() || artId.isBlank()) {
+                        continue
+                    }
+
+                    val datum = if (
+                        fundObject.has("datum") &&
+                        !fundObject.isNull("datum")
+                    ) {
+                        fundObject.optString("datum")
+                    } else {
+                        null
+                    }
+
+                    val fotoUrl = if (
+                        fundObject.has("fotoUrl") &&
+                        !fundObject.isNull("fotoUrl")
+                    ) {
+                        fundObject.optString("fotoUrl")
+                    } else {
+                        null
+                    }
+
+                    val fotoCredit = if (
+                        fundObject.has("fotoCredit") &&
+                        !fundObject.isNull("fotoCredit")
+                    ) {
+                        fundObject.optString("fotoCredit")
+                    } else {
+                        null
+                    }
+
+                    funde += Fund(
+                        id = id,
+                        artId = artId,
+                        lat = fundObject.optDouble("lat"),
+                        lng = fundObject.optDouble("lng"),
+                        datum = datum,
+                        fotoUrl = fotoUrl,
+                        fotoCredit = fotoCredit,
+                        bestaetigt = fundObject.optBoolean("bestaetigt", false),
+                        ungenau = fundObject.optBoolean("ungenau", false)
+                    )
+                }
+
+                cache[schluessel] = CacheEintrag(
+                    zeitpunkt = zeitpunkt,
+                    funde = funde
+                )
+            }
+        } catch (e: Exception) {
+            return LinkedHashMap()
+        }
+
+        while (cache.size > MAX_FUND_CACHE) {
+            cache.remove(cache.keys.first())
+        }
+
+        return cache
+    }
+
+    private fun speichereFundCache() {
+        try {
+            val array = JSONArray()
+            val jetzt = System.currentTimeMillis()
+
+            for ((schluessel, eintrag) in fundCache) {
+                if (jetzt - eintrag.zeitpunkt > FUND_PERSISTENTER_CACHE_DAUER) {
+                    continue
+                }
+
+                val fundArray = JSONArray()
+
+                for (fund in eintrag.funde) {
+                    val o = JSONObject()
+
+                    o.put("id", fund.id)
+                    o.put("artId", fund.artId)
+                    o.put("lat", fund.lat)
+                    o.put("lng", fund.lng)
+
+                    if (fund.datum != null) {
+                        o.put("datum", fund.datum)
+                    } else {
+                        o.put("datum", JSONObject.NULL)
+                    }
+
+                    if (fund.fotoUrl != null) {
+                        o.put("fotoUrl", fund.fotoUrl)
+                    } else {
+                        o.put("fotoUrl", JSONObject.NULL)
+                    }
+
+                    if (fund.fotoCredit != null) {
+                        o.put("fotoCredit", fund.fotoCredit)
+                    } else {
+                        o.put("fotoCredit", JSONObject.NULL)
+                    }
+
+                    o.put("bestaetigt", fund.bestaetigt)
+                    o.put("ungenau", fund.ungenau)
+
+                    fundArray.put(o)
+                }
+
+                val cacheObject = JSONObject()
+
+                cacheObject.put("schluessel", schluessel)
+                cacheObject.put("zeitpunkt", eintrag.zeitpunkt)
+                cacheObject.put("funde", fundArray)
+
+                array.put(cacheObject)
+            }
+
+            prefs.edit()
+                .putString(FUND_CACHE_PREFS_KEY, array.toString())
+                .apply()
+        } catch (e: Exception) {
         }
     }
 
