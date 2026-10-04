@@ -765,4 +765,349 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
                 )
 
                 array.put(cacheObject)
- 
+            }
+
+            prefs.edit()
+                .putString(
+                    WETTER_CACHE_PREFS_KEY,
+                    array.toString()
+                )
+                .apply()
+        } catch (e: Exception) {
+        }
+    }
+
+    fun toggle(id: String) {
+        auswahl =
+            if (id in auswahl) {
+                auswahl - id
+            } else {
+                auswahl + id
+            }
+
+        gewaehlteFundId = null
+    }
+
+    fun alleAnzeigen() {
+        auswahl = emptySet()
+        gewaehlteFundId = null
+    }
+
+    fun setzeZeitraum(
+        z: Zeitraum
+    ) {
+        if (zeitraum == z) {
+            return
+        }
+
+        zeitraum = z
+        gewaehlteFundId = null
+    }
+
+    fun waehle(
+        id: String?
+    ) {
+        gewaehlteFundId = id
+    }
+
+    fun gewaehlterFund(): Fund? {
+        return funde.firstOrNull {
+            it.id == gewaehlteFundId
+        }
+    }
+
+    fun ladeFunde(
+        sued: Double,
+        nord: Double,
+        west: Double,
+        ost: Double
+    ) {
+        if (
+            nord - sued > 0.8 ||
+            ost - west > 1.2
+        ) {
+            ladeJob?.cancel()
+
+            aktuellerLadeSchluessel = null
+            funde = emptyList()
+            laedt = false
+
+            meldung =
+                "Näher heranzoomen, um Funde zu laden"
+
+            return
+        }
+
+        val aktiv =
+            aktiveArten()
+
+        val ab =
+            zeitraum.tage?.let {
+                LocalDate.now()
+                    .minusDays(
+                        it.toLong()
+                    )
+            }
+
+        ladeJob?.cancel()
+
+        val nr = ++ladeNr
+
+        ladeJob =
+            viewModelScope.launch {
+                delay(LADE_DEBOUNCE)
+
+                laedt = true
+                meldung = null
+
+                try {
+                    idSperre.withLock {
+                        val fehlend =
+                            aktiv.filter {
+                                !taxonIds.containsKey(
+                                    it.id
+                                ) &&
+                                    it.id !in aufgegeben
+                            }
+
+                        if (
+                            fehlend.isNotEmpty()
+                        ) {
+                            meldung =
+                                "Pilzarten werden beim ersten Start eingerichtet …"
+
+                            val gefunden =
+                                Inat.taxonIds(
+                                    fehlend
+                                )
+
+                            taxonIds =
+                                taxonIds + gefunden
+
+                            if (
+                                gefunden.isNotEmpty()
+                            ) {
+                                speichereIds(
+                                    taxonIds
+                                )
+                            }
+
+                            for (a in fehlend) {
+                                if (
+                                    !gefunden.containsKey(
+                                        a.id
+                                    )
+                                ) {
+                                    aufgegeben.add(
+                                        a.id
+                                    )
+                                }
+                            }
+
+                            meldung = null
+                        }
+                    }
+
+                    val ids =
+                        HashMap<String, Long>()
+
+                    for (a in aktiv) {
+                        val t =
+                            taxonIds[a.id]
+
+                        if (t != null) {
+                            ids[a.id] = t
+                        }
+                    }
+
+                    val schluessel =
+                        fundCacheSchluessel(
+                            ids = ids,
+                            sued = sued,
+                            nord = nord,
+                            west = west,
+                            ost = ost,
+                            ab = ab
+                        )
+
+                    if (
+                        schluessel ==
+                        aktuellerLadeSchluessel
+                    ) {
+                        return@launch
+                    }
+
+                    aktuellerLadeSchluessel =
+                        schluessel
+
+                    val cache =
+                        cachedFunde(
+                            schluessel
+                        )
+
+                    if (
+                        cache != null
+                    ) {
+                        funde = cache
+                        gewaehlteFundId = null
+
+                        if (
+                            cache.isEmpty()
+                        ) {
+                            meldung =
+                                "Keine Funde in diesem Ausschnitt und Zeitraum"
+                        }
+
+                        return@launch
+                    }
+
+                    val neu =
+                        Inat.funde(
+                            ids = ids,
+                            sued = sued,
+                            nord = nord,
+                            west = west,
+                            ost = ost,
+                            ab = ab
+                        )
+
+                    speichereFunde(
+                        schluessel,
+                        neu
+                    )
+
+                    funde = neu
+                    gewaehlteFundId = null
+
+                    if (
+                        neu.isEmpty()
+                    ) {
+                        meldung =
+                            "Keine Funde in diesem Ausschnitt und Zeitraum"
+                    }
+                } catch (
+                    e: CancellationException
+                ) {
+                    throw e
+                } catch (
+                    e: Exception
+                ) {
+                    val offlineFunde =
+                        cachedFunde(
+                            schluessel =
+                                aktuellerLadeSchluessel
+                                    ?: "",
+                            allowStale = true
+                        )
+
+                    if (
+                        offlineFunde != null
+                    ) {
+                        funde =
+                            offlineFunde
+
+                        gewaehlteFundId =
+                            null
+
+                        meldung =
+                            "Offline: gespeicherte Funde werden angezeigt"
+                    } else {
+                        funde = emptyList()
+
+                        meldung =
+                            "Keine Verbindung · noch keine Funde für diesen Ausschnitt gespeichert"
+                    }
+                } finally {
+                    if (
+                        nr == ladeNr
+                    ) {
+                        laedt = false
+                    }
+                }
+            }
+    }
+
+    fun ladeWetter(
+        lat: Double,
+        lng: Double
+    ) {
+        val alt = wetterPos
+
+        if (
+            alt != null &&
+            abs(
+                alt.first - lat
+            ) < 0.2 &&
+            abs(
+                alt.second - lng
+            ) < 0.3
+        ) {
+            return
+        }
+
+        val schluessel =
+            wetterCacheSchluessel(
+                lat,
+                lng
+            )
+
+        val cache =
+            cachedWetter(
+                schluessel
+            )
+
+        if (
+            cache != null
+        ) {
+            wetter = cache
+            wetterPos =
+                lat to lng
+            return
+        }
+
+        wetterJob?.cancel()
+
+        wetterPos =
+            lat to lng
+
+        wetterJob =
+            viewModelScope.launch {
+                try {
+                    val neu =
+                        OpenMeteo.hole(
+                            lat,
+                            lng
+                        )
+
+                    speichereWetter(
+                        schluessel,
+                        neu
+                    )
+
+                    wetter = neu
+                } catch (
+                    e: CancellationException
+                ) {
+                    throw e
+                } catch (
+                    e: Exception
+                ) {
+                    val offlineWetter =
+                        cachedWetter(
+                            schluessel =
+                                schluessel,
+                            allowStale = true
+                        )
+
+                    if (
+                        offlineWetter != null
+                    ) {
+                        wetter =
+                            offlineWetter
+                    } else {
+                        wetterPos = null
+                    }
+                }
+            }
+    }
+}
