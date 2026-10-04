@@ -62,6 +62,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
@@ -222,15 +223,14 @@ fun FotoHilfe(
                     Arrangement.SpaceBetween
             ) {
                 Text(
-                    "📷 Foto-Hilfe",
+                    text = "📷 Foto-Hilfe",
                     color = Farben.Schrift,
                     fontSize = 20.sp
                 )
 
                 Text(
-                    "✕",
-                    color =
-                        Farben.SchriftGedimmt,
+                    text = "✕",
+                    color = Farben.SchriftGedimmt,
                     fontSize = 20.sp,
                     modifier = Modifier
                         .clickable {
@@ -263,7 +263,7 @@ fun FotoHilfe(
             )
 
             Text(
-                "Foto erfolgreich ausgewählt.",
+                text = "Foto erfolgreich ausgewählt.",
                 color = Farben.Moos,
                 fontSize = 14.sp
             )
@@ -273,9 +273,10 @@ fun FotoHilfe(
             )
 
             Text(
-                "Dieses Foto ersetzt keine sichere " +
-                    "Pilzbestimmung. Die App gibt daraus " +
-                    "keine Entscheidung zum Verzehr ab.",
+                text =
+                    "Dieses Foto ersetzt keine sichere " +
+                        "Pilzbestimmung. Die App gibt daraus " +
+                        "keine Entscheidung zum Verzehr ab.",
                 color = Farben.SchriftGedimmt,
                 fontSize = 12.sp
             )
@@ -285,9 +286,10 @@ fun FotoHilfe(
             )
 
             Text(
-                "Bei unbekannten Pilzen immer einen " +
-                    "Pilzsachverständigen zur Bestimmung " +
-                    "hinzuziehen.",
+                text =
+                    "Bei unbekannten Pilzen immer einen " +
+                        "Pilzsachverständigen zur Bestimmung " +
+                        "hinzuziehen.",
                 color = Farben.Amber,
                 fontSize = 12.sp
             )
@@ -674,7 +676,7 @@ fun SporadarScreen(
                             Alignment.Center
                     ) {
                         Text(
-                            "📷",
+                            text = "📷",
                             fontSize = 22.sp
                         )
                     }
@@ -685,7 +687,7 @@ fun SporadarScreen(
                 )
 
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .size(54.dp)
                         .shadow(
                             8.dp,
@@ -708,11 +710,8 @@ fun SporadarScreen(
                                         )
 
                                     if (p != null) {
-                                        standort =
-                                            p
-
-                                        standortHinweis =
-                                            null
+                                        standort = p
+                                        standortHinweis = null
 
                                         kamera.animate(
                                             CameraUpdateFactory
@@ -730,4 +729,4 @@ fun SporadarScreen(
                                 }
                             }
                         },
-             
+                
