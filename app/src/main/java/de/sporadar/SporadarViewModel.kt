@@ -27,7 +27,10 @@ enum class Zeitraum(val label: String, val tage: Int?) {
 }
 
 class SporadarViewModel(app: Application) : AndroidViewModel(app) {
-    private val prefs = app.getSharedPreferences("sporadar", Context.MODE_PRIVATE)
+    private val prefs = app.getSharedPreferences(
+        "sporadar",
+        Context.MODE_PRIVATE
+    )
 
     var auswahl by mutableStateOf(setOf<String>())
         private set
@@ -66,7 +69,7 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     private val fundCache = ladePersistentenFundCache()
-    private val wetterCache = LinkedHashMap<String, WetterEintrag>()
+    private val wetterCache = ladePersistentenWetterCache()
 
     private var aktuellerLadeSchluessel: String? = null
 
@@ -76,16 +79,23 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val FUND_CACHE_DAUER = 3 * 60 * 1000L
-        const val FUND_PERSISTENTER_CACHE_DAUER = 30 * 60 * 1000L
+        const val PERSISTENTER_CACHE_DAUER = 24 * 60 * 60 * 1000L
         const val WETTER_CACHE_DAUER = 10 * 60 * 1000L
+
         const val MAX_FUND_CACHE = 10
         const val MAX_WETTER_CACHE = 6
+
         const val LADE_DEBOUNCE = 450L
+
         const val FUND_CACHE_PREFS_KEY = "fund_cache"
+        const val WETTER_CACHE_PREFS_KEY = "wetter_cache"
     }
 
     private fun leseIds(): Map<String, Long> {
-        val roh = prefs.getString("taxon_ids", null) ?: return emptyMap()
+        val roh = prefs.getString(
+            "taxon_ids",
+            null
+        ) ?: return emptyMap()
 
         return try {
             val o = JSONObject(roh)
@@ -101,7 +111,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun speichereIds(m: Map<String, Long>) {
+    private fun speichereIds(
+        m: Map<String, Long>
+    ) {
         val o = JSONObject()
 
         for ((k, v) in m) {
@@ -109,7 +121,10 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         prefs.edit()
-            .putString("taxon_ids", o.toString())
+            .putString(
+                "taxon_ids",
+                o.toString()
+            )
             .apply()
     }
 
@@ -117,12 +132,19 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         return if (auswahl.isEmpty()) {
             Daten.arten
         } else {
-            Daten.arten.filter { it.id in auswahl }
+            Daten.arten.filter {
+                it.id in auswahl
+            }
         }
     }
 
-    private fun rundeWert(wert: Double, stellen: Double): Double {
-        return round(wert / stellen) * stellen
+    private fun rundeWert(
+        wert: Double,
+        stellen: Double
+    ): Double {
+        return round(
+            wert / stellen
+        ) * stellen
     }
 
     private fun fundCacheSchluessel(
@@ -135,7 +157,9 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
     ): String {
         val idsText = ids.entries
             .sortedBy { it.key }
-            .joinToString(",") { "${it.key}:${it.value}" }
+            .joinToString(",") {
+                "${it.key}:${it.value}"
+            }
 
         return buildString {
             append(idsText)
@@ -154,120 +178,239 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun wetterCacheSchluessel(lat: Double, lng: Double): String {
-        return "${rundeWert(lat, 0.1)}:${rundeWert(lng, 0.1)}"
+    private fun wetterCacheSchluessel(
+        lat: Double,
+        lng: Double
+    ): String {
+        return "${rundeWert(lat, 0.1)}:" +
+            rundeWert(lng, 0.1)
     }
 
-    private fun cachedFunde(schluessel: String): List<Fund>? {
-        val eintrag = fundCache[schluessel] ?: return null
+    private fun cachedFunde(
+        schluessel: String,
+        allowStale: Boolean = false
+    ): List<Fund>? {
+        val eintrag =
+            fundCache[schluessel]
+                ?: return null
 
-        if (System.currentTimeMillis() - eintrag.zeitpunkt > FUND_CACHE_DAUER) {
-            fundCache.remove(schluessel)
+        val alter =
+            System.currentTimeMillis() -
+                eintrag.zeitpunkt
+
+        if (
+            !allowStale &&
+            alter > FUND_CACHE_DAUER
+        ) {
+            return null
+        }
+
+        if (
+            allowStale &&
+            alter > PERSISTENTER_CACHE_DAUER
+        ) {
+            fundCache.remove(
+                schluessel
+            )
             return null
         }
 
         return eintrag.funde
     }
 
-    private fun speichereFunde(schluessel: String, funde: List<Fund>) {
-        fundCache[schluessel] = CacheEintrag(
-            zeitpunkt = System.currentTimeMillis(),
-            funde = funde
-        )
+    private fun speichereFunde(
+        schluessel: String,
+        funde: List<Fund>
+    ) {
+        fundCache[schluessel] =
+            CacheEintrag(
+                zeitpunkt =
+                    System.currentTimeMillis(),
+                funde = funde
+            )
 
-        while (fundCache.size > MAX_FUND_CACHE) {
-            fundCache.remove(fundCache.keys.first())
+        while (
+            fundCache.size >
+            MAX_FUND_CACHE
+        ) {
+            fundCache.remove(
+                fundCache.keys.first()
+            )
         }
 
         speichereFundCache()
     }
 
-    private fun ladePersistentenFundCache(): LinkedHashMap<String, CacheEintrag> {
-        val cache = LinkedHashMap<String, CacheEintrag>()
-        val roh = prefs.getString(FUND_CACHE_PREFS_KEY, null) ?: return cache
+    private fun ladePersistentenFundCache():
+        LinkedHashMap<String, CacheEintrag> {
+        val cache =
+            LinkedHashMap<String, CacheEintrag>()
+
+        val roh = prefs.getString(
+            FUND_CACHE_PREFS_KEY,
+            null
+        ) ?: return cache
 
         try {
             val array = JSONArray(roh)
-            val jetzt = System.currentTimeMillis()
+            val jetzt =
+                System.currentTimeMillis()
 
             for (i in 0 until array.length()) {
-                val eintrag = array.optJSONObject(i) ?: continue
+                val eintrag =
+                    array.optJSONObject(i)
+                        ?: continue
 
-                val schluessel = eintrag.optString("schluessel")
-                val zeitpunkt = eintrag.optLong("zeitpunkt", 0L)
-                val fundArray = eintrag.optJSONArray("funde")
+                val schluessel =
+                    eintrag.optString(
+                        "schluessel"
+                    )
 
-                if (schluessel.isBlank() || zeitpunkt <= 0L || fundArray == null) {
+                val zeitpunkt =
+                    eintrag.optLong(
+                        "zeitpunkt",
+                        0L
+                    )
+
+                val fundArray =
+                    eintrag.optJSONArray(
+                        "funde"
+                    )
+
+                if (
+                    schluessel.isBlank() ||
+                    zeitpunkt <= 0L ||
+                    fundArray == null
+                ) {
                     continue
                 }
 
-                if (jetzt - zeitpunkt > FUND_PERSISTENTER_CACHE_DAUER) {
+                if (
+                    jetzt - zeitpunkt >
+                    PERSISTENTER_CACHE_DAUER
+                ) {
                     continue
                 }
 
-                val funde = mutableListOf<Fund>()
+                val funde =
+                    mutableListOf<Fund>()
 
-                for (j in 0 until fundArray.length()) {
-                    val fundObject = fundArray.optJSONObject(j) ?: continue
+                for (
+                    j in 0 until fundArray.length()
+                ) {
+                    val fundObject =
+                        fundArray.optJSONObject(j)
+                            ?: continue
 
-                    val id = fundObject.optString("id")
-                    val artId = fundObject.optString("artId")
+                    val id =
+                        fundObject.optString(
+                            "id"
+                        )
 
-                    if (id.isBlank() || artId.isBlank()) {
+                    val artId =
+                        fundObject.optString(
+                            "artId"
+                        )
+
+                    if (
+                        id.isBlank() ||
+                        artId.isBlank()
+                    ) {
                         continue
                     }
 
-                    val datum = if (
-                        fundObject.has("datum") &&
-                        !fundObject.isNull("datum")
-                    ) {
-                        fundObject.optString("datum")
-                    } else {
-                        null
-                    }
+                    val datum =
+                        if (
+                            fundObject.has(
+                                "datum"
+                            ) &&
+                            !fundObject.isNull(
+                                "datum"
+                            )
+                        ) {
+                            fundObject.optString(
+                                "datum"
+                            )
+                        } else {
+                            null
+                        }
 
-                    val fotoUrl = if (
-                        fundObject.has("fotoUrl") &&
-                        !fundObject.isNull("fotoUrl")
-                    ) {
-                        fundObject.optString("fotoUrl")
-                    } else {
-                        null
-                    }
+                    val fotoUrl =
+                        if (
+                            fundObject.has(
+                                "fotoUrl"
+                            ) &&
+                            !fundObject.isNull(
+                                "fotoUrl"
+                            )
+                        ) {
+                            fundObject.optString(
+                                "fotoUrl"
+                            )
+                        } else {
+                            null
+                        }
 
-                    val fotoCredit = if (
-                        fundObject.has("fotoCredit") &&
-                        !fundObject.isNull("fotoCredit")
-                    ) {
-                        fundObject.optString("fotoCredit")
-                    } else {
-                        null
-                    }
+                    val fotoCredit =
+                        if (
+                            fundObject.has(
+                                "fotoCredit"
+                            ) &&
+                            !fundObject.isNull(
+                                "fotoCredit"
+                            )
+                        ) {
+                            fundObject.optString(
+                                "fotoCredit"
+                            )
+                        } else {
+                            null
+                        }
 
                     funde += Fund(
                         id = id,
                         artId = artId,
-                        lat = fundObject.optDouble("lat"),
-                        lng = fundObject.optDouble("lng"),
+                        lat =
+                            fundObject.optDouble(
+                                "lat"
+                            ),
+                        lng =
+                            fundObject.optDouble(
+                                "lng"
+                            ),
                         datum = datum,
                         fotoUrl = fotoUrl,
                         fotoCredit = fotoCredit,
-                        bestaetigt = fundObject.optBoolean("bestaetigt", false),
-                        ungenau = fundObject.optBoolean("ungenau", false)
+                        bestaetigt =
+                            fundObject.optBoolean(
+                                "bestaetigt",
+                                false
+                            ),
+                        ungenau =
+                            fundObject.optBoolean(
+                                "ungenau",
+                                false
+                            )
                     )
                 }
 
-                cache[schluessel] = CacheEintrag(
-                    zeitpunkt = zeitpunkt,
-                    funde = funde
-                )
+                cache[schluessel] =
+                    CacheEintrag(
+                        zeitpunkt = zeitpunkt,
+                        funde = funde
+                    )
             }
         } catch (e: Exception) {
             return LinkedHashMap()
         }
 
-        while (cache.size > MAX_FUND_CACHE) {
-            cache.remove(cache.keys.first())
+        while (
+            cache.size >
+            MAX_FUND_CACHE
+        ) {
+            cache.remove(
+                cache.keys.first()
+            )
         }
 
         return cache
@@ -276,275 +419,350 @@ class SporadarViewModel(app: Application) : AndroidViewModel(app) {
     private fun speichereFundCache() {
         try {
             val array = JSONArray()
-            val jetzt = System.currentTimeMillis()
+            val jetzt =
+                System.currentTimeMillis()
 
-            for ((schluessel, eintrag) in fundCache) {
-                if (jetzt - eintrag.zeitpunkt > FUND_PERSISTENTER_CACHE_DAUER) {
+            for (
+                (schluessel, eintrag)
+                in fundCache
+            ) {
+                if (
+                    jetzt - eintrag.zeitpunkt >
+                    PERSISTENTER_CACHE_DAUER
+                ) {
                     continue
                 }
 
-                val fundArray = JSONArray()
+                val fundArray =
+                    JSONArray()
 
                 for (fund in eintrag.funde) {
                     val o = JSONObject()
 
-                    o.put("id", fund.id)
-                    o.put("artId", fund.artId)
-                    o.put("lat", fund.lat)
-                    o.put("lng", fund.lng)
+                    o.put(
+                        "id",
+                        fund.id
+                    )
 
-                    if (fund.datum != null) {
-                        o.put("datum", fund.datum)
+                    o.put(
+                        "artId",
+                        fund.artId
+                    )
+
+                    o.put(
+                        "lat",
+                        fund.lat
+                    )
+
+                    o.put(
+                        "lng",
+                        fund.lng
+                    )
+
+                    if (
+                        fund.datum != null
+                    ) {
+                        o.put(
+                            "datum",
+                            fund.datum
+                        )
                     } else {
-                        o.put("datum", JSONObject.NULL)
+                        o.put(
+                            "datum",
+                            JSONObject.NULL
+                        )
                     }
 
-                    if (fund.fotoUrl != null) {
-                        o.put("fotoUrl", fund.fotoUrl)
+                    if (
+                        fund.fotoUrl != null
+                    ) {
+                        o.put(
+                            "fotoUrl",
+                            fund.fotoUrl
+                        )
                     } else {
-                        o.put("fotoUrl", JSONObject.NULL)
+                        o.put(
+                            "fotoUrl",
+                            JSONObject.NULL
+                        )
                     }
 
-                    if (fund.fotoCredit != null) {
-                        o.put("fotoCredit", fund.fotoCredit)
+                    if (
+                        fund.fotoCredit != null
+                    ) {
+                        o.put(
+                            "fotoCredit",
+                            fund.fotoCredit
+                        )
                     } else {
-                        o.put("fotoCredit", JSONObject.NULL)
+                        o.put(
+                            "fotoCredit",
+                            JSONObject.NULL
+                        )
                     }
 
-                    o.put("bestaetigt", fund.bestaetigt)
-                    o.put("ungenau", fund.ungenau)
+                    o.put(
+                        "bestaetigt",
+                        fund.bestaetigt
+                    )
+
+                    o.put(
+                        "ungenau",
+                        fund.ungenau
+                    )
 
                     fundArray.put(o)
                 }
 
-                val cacheObject = JSONObject()
+                val cacheObject =
+                    JSONObject()
 
-                cacheObject.put("schluessel", schluessel)
-                cacheObject.put("zeitpunkt", eintrag.zeitpunkt)
-                cacheObject.put("funde", fundArray)
+                cacheObject.put(
+                    "schluessel",
+                    schluessel
+                )
+
+                cacheObject.put(
+                    "zeitpunkt",
+                    eintrag.zeitpunkt
+                )
+
+                cacheObject.put(
+                    "funde",
+                    fundArray
+                )
 
                 array.put(cacheObject)
             }
 
             prefs.edit()
-                .putString(FUND_CACHE_PREFS_KEY, array.toString())
+                .putString(
+                    FUND_CACHE_PREFS_KEY,
+                    array.toString()
+                )
                 .apply()
         } catch (e: Exception) {
         }
     }
 
-    private fun cachedWetter(schluessel: String): Wetter? {
-        val eintrag = wetterCache[schluessel] ?: return null
+    private fun cachedWetter(
+        schluessel: String,
+        allowStale: Boolean = false
+    ): Wetter? {
+        val eintrag =
+            wetterCache[schluessel]
+                ?: return null
 
-        if (System.currentTimeMillis() - eintrag.zeitpunkt > WETTER_CACHE_DAUER) {
-            wetterCache.remove(schluessel)
+        val alter =
+            System.currentTimeMillis() -
+                eintrag.zeitpunkt
+
+        if (
+            !allowStale &&
+            alter > WETTER_CACHE_DAUER
+        ) {
+            return null
+        }
+
+        if (
+            allowStale &&
+            alter > PERSISTENTER_CACHE_DAUER
+        ) {
+            wetterCache.remove(
+                schluessel
+            )
             return null
         }
 
         return eintrag.wetter
     }
 
-    private fun speichereWetter(schluessel: String, wetter: Wetter) {
-        wetterCache[schluessel] = WetterEintrag(
-            zeitpunkt = System.currentTimeMillis(),
-            wetter = wetter
-        )
-
-        while (wetterCache.size > MAX_WETTER_CACHE) {
-            wetterCache.remove(wetterCache.keys.first())
-        }
-    }
-
-    fun toggle(id: String) {
-        auswahl = if (id in auswahl) {
-            auswahl - id
-        } else {
-            auswahl + id
-        }
-
-        gewaehlteFundId = null
-    }
-
-    fun alleAnzeigen() {
-        auswahl = emptySet()
-        gewaehlteFundId = null
-    }
-
-    fun setzeZeitraum(z: Zeitraum) {
-        if (zeitraum == z) return
-
-        zeitraum = z
-        gewaehlteFundId = null
-    }
-
-    fun waehle(id: String?) {
-        gewaehlteFundId = id
-    }
-
-    fun gewaehlterFund(): Fund? {
-        return funde.firstOrNull { it.id == gewaehlteFundId }
-    }
-
-    fun ladeFunde(
-        sued: Double,
-        nord: Double,
-        west: Double,
-        ost: Double
+    private fun speichereWetter(
+        schluessel: String,
+        wetter: Wetter
     ) {
-        if (nord - sued > 0.8 || ost - west > 1.2) {
-            ladeJob?.cancel()
-            aktuellerLadeSchluessel = null
-            funde = emptyList()
-            laedt = false
-            meldung = "Näher heranzoomen, um Funde zu laden"
-            return
-        }
+        wetterCache[schluessel] =
+            WetterEintrag(
+                zeitpunkt =
+                    System.currentTimeMillis(),
+                wetter = wetter
+            )
 
-        val aktiv = aktiveArten()
-        val ab = zeitraum.tage?.let {
-            LocalDate.now().minusDays(it.toLong())
-        }
-
-        ladeJob?.cancel()
-
-        val nr = ++ladeNr
-
-        ladeJob = viewModelScope.launch {
-            delay(LADE_DEBOUNCE)
-
-            laedt = true
-            meldung = null
-
-            try {
-                idSperre.withLock {
-                    val fehlend = aktiv.filter {
-                        !taxonIds.containsKey(it.id) &&
-                            it.id !in aufgegeben
-                    }
-
-                    if (fehlend.isNotEmpty()) {
-                        meldung = "Pilzarten werden beim ersten Start eingerichtet …"
-
-                        val gefunden = Inat.taxonIds(fehlend)
-
-                        taxonIds = taxonIds + gefunden
-
-                        if (gefunden.isNotEmpty()) {
-                            speichereIds(taxonIds)
-                        }
-
-                        for (a in fehlend) {
-                            if (!gefunden.containsKey(a.id)) {
-                                aufgegeben.add(a.id)
-                            }
-                        }
-
-                        meldung = null
-                    }
-                }
-
-                val ids = HashMap<String, Long>()
-
-                for (a in aktiv) {
-                    val t = taxonIds[a.id]
-
-                    if (t != null) {
-                        ids[a.id] = t
-                    }
-                }
-
-                val schluessel = fundCacheSchluessel(
-                    ids = ids,
-                    sued = sued,
-                    nord = nord,
-                    west = west,
-                    ost = ost,
-                    ab = ab
-                )
-
-                if (schluessel == aktuellerLadeSchluessel) {
-                    return@launch
-                }
-
-                aktuellerLadeSchluessel = schluessel
-
-                val cache = cachedFunde(schluessel)
-
-                if (cache != null) {
-                    funde = cache
-                    gewaehlteFundId = null
-
-                    if (cache.isEmpty()) {
-                        meldung = "Keine Funde in diesem Ausschnitt und Zeitraum"
-                    }
-
-                    return@launch
-                }
-
-                val neu = Inat.funde(
-                    ids = ids,
-                    sued = sued,
-                    nord = nord,
-                    west = west,
-                    ost = ost,
-                    ab = ab
-                )
-
-                speichereFunde(schluessel, neu)
-
-                funde = neu
-                gewaehlteFundId = null
-
-                if (neu.isEmpty()) {
-                    meldung = "Keine Funde in diesem Ausschnitt und Zeitraum"
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                meldung = "Funddaten konnten nicht geladen werden"
-                aktuellerLadeSchluessel = null
-            } finally {
-                if (nr == ladeNr) {
-                    laedt = false
-                }
-            }
-        }
-    }
-
-    fun ladeWetter(lat: Double, lng: Double) {
-        val alt = wetterPos
-
-        if (
-            alt != null &&
-            abs(alt.first - lat) < 0.2 &&
-            abs(alt.second - lng) < 0.3
+        while (
+            wetterCache.size >
+            MAX_WETTER_CACHE
         ) {
-            return
+            wetterCache.remove(
+                wetterCache.keys.first()
+            )
         }
 
-        val schluessel = wetterCacheSchluessel(lat, lng)
-        val cache = cachedWetter(schluessel)
-
-        if (cache != null) {
-            wetter = cache
-            wetterPos = lat to lng
-            return
-        }
-
-        wetterJob?.cancel()
-        wetterPos = lat to lng
-
-        wetterJob = viewModelScope.launch {
-            try {
-                val neu = OpenMeteo.hole(lat, lng)
-
-                speichereWetter(schluessel, neu)
-                wetter = neu
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                wetterPos = null
-            }
-        }
+        speichereWetterCache()
     }
-}
+
+    private fun ladePersistentenWetterCache():
+        LinkedHashMap<String, WetterEintrag> {
+        val cache =
+            LinkedHashMap<String, WetterEintrag>()
+
+        val roh = prefs.getString(
+            WETTER_CACHE_PREFS_KEY,
+            null
+        ) ?: return cache
+
+        try {
+            val array = JSONArray(roh)
+            val jetzt =
+                System.currentTimeMillis()
+
+            for (i in 0 until array.length()) {
+                val o =
+                    array.optJSONObject(i)
+                        ?: continue
+
+                val schluessel =
+                    o.optString(
+                        "schluessel"
+                    )
+
+                val zeitpunkt =
+                    o.optLong(
+                        "zeitpunkt",
+                        0L
+                    )
+
+                if (
+                    schluessel.isBlank() ||
+                    zeitpunkt <= 0L
+                ) {
+                    continue
+                }
+
+                if (
+                    jetzt - zeitpunkt >
+                    PERSISTENTER_CACHE_DAUER
+                ) {
+                    continue
+                }
+
+                val wetterObject =
+                    o.optJSONObject(
+                        "wetter"
+                    ) ?: continue
+
+                val wetter =
+                    Wetter(
+                        regen14 =
+                            wetterObject.optDouble(
+                                "regen14",
+                                0.0
+                            ),
+                        regen7 =
+                            wetterObject.optDouble(
+                                "regen7",
+                                0.0
+                            ),
+                        regen3 =
+                            wetterObject.optDouble(
+                                "regen3",
+                                0.0
+                            ),
+                        temp7 =
+                            wetterObject.optDouble(
+                                "temp7",
+                                10.0
+                            ),
+                        index =
+                            wetterObject.optDouble(
+                                "index",
+                                0.0
+                            ).toFloat()
+                    )
+
+                cache[schluessel] =
+                    WetterEintrag(
+                        zeitpunkt = zeitpunkt,
+                        wetter = wetter
+                    )
+            }
+        } catch (e: Exception) {
+            return LinkedHashMap()
+        }
+
+        while (
+            cache.size >
+            MAX_WETTER_CACHE
+        ) {
+            cache.remove(
+                cache.keys.first()
+            )
+        }
+
+        return cache
+    }
+
+    private fun speichereWetterCache() {
+        try {
+            val array = JSONArray()
+            val jetzt =
+                System.currentTimeMillis()
+
+            for (
+                (schluessel, eintrag)
+                in wetterCache
+            ) {
+                if (
+                    jetzt - eintrag.zeitpunkt >
+                    PERSISTENTER_CACHE_DAUER
+                ) {
+                    continue
+                }
+
+                val wetterObject =
+                    JSONObject()
+
+                wetterObject.put(
+                    "regen14",
+                    eintrag.wetter.regen14
+                )
+
+                wetterObject.put(
+                    "regen7",
+                    eintrag.wetter.regen7
+                )
+
+                wetterObject.put(
+                    "regen3",
+                    eintrag.wetter.regen3
+                )
+
+                wetterObject.put(
+                    "temp7",
+                    eintrag.wetter.temp7
+                )
+
+                wetterObject.put(
+                    "index",
+                    eintrag.wetter.index
+                )
+
+                val cacheObject =
+                    JSONObject()
+
+                cacheObject.put(
+                    "schluessel",
+                    schluessel
+                )
+
+                cacheObject.put(
+                    "zeitpunkt",
+                    eintrag.zeitpunkt
+                )
+
+                cacheObject.put(
+                    "wetter",
+                    wetterObject
+                )
+
+                array.put(cacheObject)
+ 
