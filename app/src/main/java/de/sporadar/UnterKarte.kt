@@ -44,7 +44,9 @@ fun alterText(datum: String?): String? {
 
     return try {
         val tage = ChronoUnit.DAYS.between(
-            LocalDate.parse(datum.take(10)),
+            LocalDate.parse(
+                datum.take(10)
+            ),
             LocalDate.now()
         )
 
@@ -74,15 +76,31 @@ private fun entfernungInMetern(
 ): Double {
     val erdradius = 6371000.0
 
-    val lat1 = Math.toRadians(start.latitude)
-    val lat2 = Math.toRadians(ziel.latitude)
-    val deltaLat = Math.toRadians(ziel.latitude - start.latitude)
-    val deltaLng = Math.toRadians(ziel.longitude - start.longitude)
+    val lat1 = Math.toRadians(
+        start.latitude
+    )
+
+    val lat2 = Math.toRadians(
+        ziel.latitude
+    )
+
+    val deltaLat = Math.toRadians(
+        ziel.latitude -
+            start.latitude
+    )
+
+    val deltaLng = Math.toRadians(
+        ziel.longitude -
+            start.longitude
+    )
 
     val a =
-        sin(deltaLat / 2.0) * sin(deltaLat / 2.0) +
-            cos(lat1) * cos(lat2) *
-            sin(deltaLng / 2.0) * sin(deltaLng / 2.0)
+        sin(deltaLat / 2.0) *
+            sin(deltaLat / 2.0) +
+            cos(lat1) *
+            cos(lat2) *
+            sin(deltaLng / 2.0) *
+            sin(deltaLng / 2.0)
 
     val c = 2.0 * atan2(
         sqrt(a),
@@ -145,17 +163,23 @@ fun UnterKarte(
                 bottom = 12.dp
             ),
         shape = RoundedCornerShape(28.dp),
-        color = Farben.Karte.copy(alpha = 0.95f),
+        color = Farben.Karte.copy(
+            alpha = 0.95f
+        ),
         border = BorderStroke(
             1.dp,
-            Farben.Moos.copy(alpha = 0.25f)
+            Farben.Moos.copy(
+                alpha = 0.25f
+            )
         )
     ) {
         Column(
             Modifier
                 .animateContentSize()
                 .heightIn(max = 440.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(
+                    rememberScrollState()
+                )
                 .padding(20.dp)
         ) {
             if (fund == null) {
@@ -209,7 +233,9 @@ fun UebersichtInhalt(
         )
 
         if (standortHinweis != null) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(
+                Modifier.height(6.dp)
+            )
 
             Text(
                 standortHinweis,
@@ -218,26 +244,57 @@ fun UebersichtInhalt(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(
+            Modifier.height(16.dp)
+        )
 
         if (wetter != null) {
-            val prozent = (wetter.index * 100).roundToInt()
-            val regenMm = wetter.regen14.roundToInt()
-            val tempText = String.format(
-                "%.1f",
-                wetter.temp7
-            )
+            val prozent =
+                (wetter.index * 100)
+                    .roundToInt()
 
-            val detail =
-                "Regen (14 Tage): $regenMm mm · Ø Temperatur (7 Tage): $tempText °C"
+            val regen3 =
+                wetter.regen3.roundToInt()
+
+            val regen7 =
+                wetter.regen7.roundToInt()
+
+            val regen14 =
+                wetter.regen14.roundToInt()
+
+            val tempText =
+                String.format(
+                    "%.1f",
+                    wetter.temp7
+                )
+
+            val wetterBewertung =
+                when {
+                    prozent >= 80 ->
+                        "Sehr gute Bedingungen"
+
+                    prozent >= 60 ->
+                        "Gute Bedingungen"
+
+                    prozent >= 40 ->
+                        "Mäßige Bedingungen"
+
+                    prozent >= 20 ->
+                        "Eher ungünstig"
+
+                    else ->
+                        "Ungünstige Bedingungen"
+                }
 
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement =
+                    Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Wetter-Index",
+                    "🍄 Pilz-Wetter",
                     color = Farben.Schrift,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
 
@@ -249,28 +306,60 @@ fun UebersichtInhalt(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(
+                Modifier.height(4.dp)
+            )
+
+            Text(
+                wetterBewertung,
+                color = Farben.SchriftGedimmt,
+                fontSize = 12.sp
+            )
+
+            Spacer(
+                Modifier.height(8.dp)
+            )
 
             LinearProgressIndicator(
-                progress = { wetter.index },
+                progress = {
+                    wetter.index
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .clip(
+                        RoundedCornerShape(4.dp)
+                    ),
                 color = Farben.Moos,
                 trackColor = Farben.Wald
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(
+                Modifier.height(8.dp)
+            )
 
             Text(
-                detail,
+                "Regen: 3 Tage $regen3 mm · " +
+                    "7 Tage $regen7 mm · " +
+                    "14 Tage $regen14 mm",
                 color = Farben.SchriftGedimmt,
                 fontSize = 12.sp
             )
 
             Text(
-                "Schätzwert aus Regen und Temperatur, kein Fundgarant.",
+                "Ø Temperatur (7 Tage): $tempText °C",
+                color = Farben.SchriftGedimmt,
+                fontSize = 12.sp
+            )
+
+            Spacer(
+                Modifier.height(4.dp)
+            )
+
+            Text(
+                "Der Index bewertet aktuelle Feuchtigkeit " +
+                    "und Temperatur. Er ist nur eine Orientierung " +
+                    "und kein Fundgarant.",
                 color = Farben.SchriftGedimmt,
                 fontSize = 11.sp
             )
@@ -282,10 +371,13 @@ fun UebersichtInhalt(
             )
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(
+            Modifier.height(10.dp)
+        )
 
         Text(
-            "Funde: iNaturalist (Community-Beobachtungen) · Wetter: Open-Meteo",
+            "Funde: iNaturalist (Community-Beobachtungen) · " +
+                "Wetter: Open-Meteo",
             color = Farben.SchriftGedimmt,
             fontSize = 10.sp
         )
@@ -298,57 +390,70 @@ fun FundInhalt(
     standort: LatLng?,
     onSchliessen: () -> Unit
 ) {
-    val art = Daten.art(fund.artId)
-    val jetztSaison = art.istSaison(
-        LocalDate.now().monthValue
+    val art = Daten.art(
+        fund.artId
     )
+
+    val jetztSaison =
+        art.istSaison(
+            LocalDate.now().monthValue
+        )
 
     val teile = fund.datum
         ?.take(10)
         ?.split("-")
 
-    val datum = if (
-        teile != null &&
-        teile.size == 3
-    ) {
-        teile[2] + "." +
-            teile[1] + "." +
-            teile[0]
-    } else {
-        fund.datum
-    }
+    val datum =
+        if (
+            teile != null &&
+            teile.size == 3
+        ) {
+            teile[2] + "." +
+                teile[1] + "." +
+                teile[0]
+        } else {
+            fund.datum
+        }
 
-    val alter = alterText(fund.datum)
+    val alter =
+        alterText(fund.datum)
 
-    val datumZeile = if (
-        datum != null &&
-        alter != null
-    ) {
-        "Beobachtet am $datum ($alter)"
-    } else if (datum != null) {
-        "Beobachtet am $datum"
-    } else {
-        null
-    }
+    val datumZeile =
+        if (
+            datum != null &&
+            alter != null
+        ) {
+            "Beobachtet am $datum ($alter)"
+        } else if (datum != null) {
+            "Beobachtet am $datum"
+        } else {
+            null
+        }
 
-    val saisonText = if (jetztSaison) {
-        "Saison: " + art.saison + " · jetzt Saison ✅"
-    } else {
-        "Saison: " + art.saison
-    }
+    val saisonText =
+        if (jetztSaison) {
+            "Saison: " +
+                art.saison +
+                " · jetzt Saison ✅"
+        } else {
+            "Saison: " +
+                art.saison
+        }
 
-    val statusText = if (fund.bestaetigt) {
-        "✅ Bestimmung von der Community bestätigt"
-    } else {
-        "⚠️ Bestimmung noch nicht bestätigt, kann falsch sein"
-    }
+    val statusText =
+        if (fund.bestaetigt) {
+            "✅ Bestimmung von der Community bestätigt"
+        } else {
+            "⚠️ Bestimmung noch nicht bestätigt, kann falsch sein"
+        }
 
-    val distanz = standort?.let {
-        entfernungText(
-            standort = it,
-            fund = fund
-        )
-    }
+    val distanz =
+        standort?.let {
+            entfernungText(
+                standort = it,
+                fund = fund
+            )
+        }
 
     Column {
         Row(
@@ -385,7 +490,9 @@ fun FundInhalt(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(
+            Modifier.height(8.dp)
+        )
 
         Text(
             saisonText,
@@ -433,7 +540,9 @@ fun FundInhalt(
         }
 
         if (fund.fotoUrl != null) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(
+                Modifier.height(12.dp)
+            )
 
             AsyncImage(
                 model = fund.fotoUrl,
@@ -442,19 +551,24 @@ fun FundInhalt(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(160.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(
+                        RoundedCornerShape(16.dp)
+                    )
             )
 
             if (fund.fotoCredit != null) {
                 Text(
-                    "Foto: " + fund.fotoCredit,
+                    "Foto: " +
+                        fund.fotoCredit,
                     color = Farben.SchriftGedimmt,
                     fontSize = 10.sp
                 )
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(
+            Modifier.height(12.dp)
+        )
 
         Text(
             "Umfeld",
@@ -462,13 +576,16 @@ fun FundInhalt(
             fontSize = 11.sp
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(
+            Modifier.height(4.dp)
+        )
 
         Row(
             Modifier.horizontalScroll(
                 rememberScrollState()
             ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement =
+                Arrangement.spacedBy(8.dp)
         ) {
             art.umfeld.forEach { u ->
                 Surface(
@@ -488,7 +605,9 @@ fun FundInhalt(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(
+            Modifier.height(12.dp)
+        )
 
         Text(
             art.hinweis,
@@ -496,7 +615,9 @@ fun FundInhalt(
             fontSize = 13.sp
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(
+            Modifier.height(8.dp)
+        )
 
         Text(
             "⚠️ Nie ohne Prüfung durch einen Pilzsachverständigen essen.",
