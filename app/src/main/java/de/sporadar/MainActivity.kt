@@ -3,9 +3,6 @@ package de.sporadar
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -37,17 +34,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptor
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
@@ -55,13 +51,8 @@ import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.MapsComposeExperimentalApi
 import com.google.maps.android.compose.clustering.Clustering
-import com.google.maps.android.compose.clustering.rememberClusterManager
-import com.google.maps.android.compose.clustering.rememberClusterRenderer
-import com.google.maps.android.compose.clustering.Cluster
-import com.google.maps.android.compose.clustering.ClusteringMarkerProperties
-import com.google.maps.android.compose.utils.MapsComposeExperimentalApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -70,8 +61,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.dark(
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.dark(
+                android.graphics.Color.TRANSPARENT
+            )
         )
 
         setContent {
@@ -102,42 +97,51 @@ data class PilzClusterItem(
     override fun getSnippet(): String? {
         return null
     }
+
+    override fun getZIndex(): Float {
+        return if (ausgewaehlt) {
+            1f
+        } else {
+            0f
+        }
+    }
 }
 
-fun markerIcon(
+@Composable
+fun PilzEinzelMarker(
     farbe: Long,
-    gewaehlt: Boolean
-): BitmapDescriptor {
-    val px = if (gewaehlt) 88 else 60
+    ausgewaehlt: Boolean
+) {
+    val groesse = if (ausgewaehlt) {
+        44.dp
+    } else {
+        30.dp
+    }
 
-    val bmp = Bitmap.createBitmap(
-        px,
-        px,
-        Bitmap.Config.ARGB_8888
-    )
+    val rand = if (ausgewaehlt) {
+        5.dp
+    } else {
+        4.dp
+    }
 
-    val c = Canvas(bmp)
-    val p = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    p.color = android.graphics.Color.WHITE
-
-    c.drawCircle(
-        px / 2f,
-        px / 2f,
-        px / 2f,
-        p
-    )
-
-    p.color = farbe.toInt()
-
-    c.drawCircle(
-        px / 2f,
-        px / 2f,
-        px / 2f - 7f,
-        p
-    )
-
-    return BitmapDescriptorFactory.fromBitmap(bmp)
+    Box(
+        modifier = Modifier
+            .size(groesse)
+            .shadow(
+                elevation = if (ausgewaehlt) 6.dp else 3.dp,
+                shape = CircleShape
+            )
+            .clip(CircleShape)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(groesse - rand * 2)
+                .clip(CircleShape)
+                .background(Color(farbe))
+        )
+    }
 }
 
 @Composable
@@ -219,7 +223,16 @@ fun SporadarScreen(
         }
     }
 
-    val kamera = rememberCameraPositionState {
+    val kamera = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            CameraPosition.fromLatLngZoom(
+                LatLng(51.16, 10.45),
+                6f
+            )
+        )
+    }
+
+    val kameraPosition = com.google.maps.android.compose.rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
             LatLng(51.16, 10.45),
             6f
@@ -246,7 +259,7 @@ fun SporadarScreen(
                 standort = p
                 standortHinweis = null
 
-                kamera.move(
+                kameraPosition.move(
                     CameraUpdateFactory.newLatLngZoom(
                         p,
                         12f
@@ -263,22 +276,22 @@ fun SporadarScreen(
     }
 
     LaunchedEffect(
-        kamera.isMoving,
+        kameraPosition.isMoving,
         vm.auswahl,
         vm.zeitraum,
         kartenBereit
     ) {
-        if (!kartenBereit || kamera.isMoving) {
+        if (!kartenBereit || kameraPosition.isMoving) {
             return@LaunchedEffect
         }
 
         delay(450)
 
-        if (kamera.isMoving) {
+        if (kameraPosition.isMoving) {
             return@LaunchedEffect
         }
 
-        val b = kamera.projection?.visibleRegion?.latLngBounds
+        val b = kameraPosition.projection?.visibleRegion?.latLngBounds
             ?: return@LaunchedEffect
 
         val sued = b.southwest.latitude
@@ -313,7 +326,7 @@ fun SporadarScreen(
             ost = ost
         )
 
-        val ziel = kamera.position.target
+        val ziel = kameraPosition.position.target
 
         vm.ladeWetter(
             lat = ziel.latitude,
@@ -347,7 +360,7 @@ fun SporadarScreen(
     ) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = kamera,
+            cameraPositionState = kameraPosition,
             properties = MapProperties(
                 isMyLocationEnabled = hatStandort,
                 mapStyleOptions = MapStyleOptions(KartenStil)
@@ -378,48 +391,18 @@ fun SporadarScreen(
                     vm.waehle(item.fund.id)
                     true
                 },
-                clusterContent = { cluster: Cluster<PilzClusterItem> ->
+                clusterContent = { cluster ->
                     PilzClusterIcon(
                         anzahl = cluster.size
                     )
                 },
                 clusterItemContent = { item ->
-                    val icon = remember(
-                        item.farbe,
-                        item.ausgewaehlt
-                    ) {
-                        markerIcon(
-                            item.farbe,
-                            item.ausgewaehlt
-                        )
-                    }
-
-                    val properties = ClusteringMarkerProperties(
-                        anchor = Offset(
-                            0.5f,
-                            0.5f
-                        ),
-                        zIndex = if (item.ausgewaehlt) {
-                            1f
-                        } else {
-                            0f
-                        }
+                    PilzEinzelMarker(
+                        farbe = item.farbe,
+                        ausgewaehlt = item.ausgewaehlt
                     )
-
-                    androidx.compose.foundation.Image(
-                        bitmap = icon.toBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier.size(
-                            if (item.ausgewaehlt) {
-                                44.dp
-                            } else {
-                                30.dp
-                            }
-                        )
-                    )
-
-                    properties
-                }
+                },
+                clusterItemContentZIndex = 1f
             )
         }
 
@@ -471,7 +454,7 @@ fun SporadarScreen(
                                         standort = p
                                         standortHinweis = null
 
-                                        kamera.animate(
+                                        kameraPosition.animate(
                                             CameraUpdateFactory.newLatLngZoom(
                                                 p,
                                                 13f
